@@ -1,0 +1,9 @@
+{
+  "name": "claude-skills",
+  "description": "Personal skills collection for Claude Code",
+  "version": "1.0.0",
+  "author": {
+    "name": "Jonas Goderis"
+  },
+  "keywords": ["skills", "personal"]
+}
