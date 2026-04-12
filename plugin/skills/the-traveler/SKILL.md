@@ -17,9 +17,36 @@ These preferences are always applied — never ask the user to repeat them:
 - **Accommodation:** Cozy stays (B&Bs, boutique hotels, charming cottages)
 - **Pace:** Balanced — active days with time to enjoy the place
 
+## Activity Type Styles
+
+Every activity card gets an automatic emoji badge based on its type:
+
+| Type | Emoji | Badge Color |
+|------|-------|-------------|
+| Hiking | 🥾 | Green |
+| Culture | 🏰 | Purple |
+| Food | 🍽️ | Orange |
+| Whisky/Drinks | 🥃 | Amber |
+| Nature/Wildlife | 🌿 | Teal |
+| Drive-by | 📍 | Blue |
+| Water Sports | 🚣 | Cyan |
+| Photography | 📸 | Pink |
+
+Apply these automatically to every activity card in both the interactive itinerary and markdown output.
+
+## Formatting Rules
+
+- **Day plans** must be structured arrays (one entry per day), never paragraphs
+- **Activity descriptions** are concise: 2-3 sentences max for the "what"
+- **Tips** render in a visually distinct box, separate from the description
+- **No walls of text** — every card should be scannable in 5 seconds
+- **Links** are always clickable, never bare URLs in prose
+
 ## Planning Phases
 
-Work through these phases in order. Present results after each phase and wait for user approval before continuing. The user may ask to revisit earlier phases at any time.
+Work through these phases in order. Present results after each phase and wait for user approval before continuing.
+
+**Iterative refinement is the norm.** Users bounce between phases constantly — changing nights, swapping stops, adding activities mid-discussion. When route changes happen, immediately cascade all downstream effects: date shifts, night redistributions, day plan updates, and accommodation adjustments. Don't wait for "phase completion" to propagate changes.
 
 ### Phase 1: Trip Brief
 
@@ -54,6 +81,7 @@ Wait for user to pick bases, drop ones they don't want, or suggest additions.
 Based on user picks, propose:
 - **Ordered stops** with recommended nights per stop
 - **Driving distances/times** between consecutive stops
+- **Drive-by highlights** for each leg — notable landmarks, viewpoints, or detours worth a brief stop on the drive between bases. Tag these as 📍 Drive-by. Search for: "[route from A to B] scenic stops", "[road name] points of interest", "[region] roadside attractions worth stopping".
 - Route summary: A (X nights) → B (Y nights) → C (Z nights)
 - Total duration check — flag if it doesn't fit available days
 - Suggest adjustments if needed (drop a stop, reduce nights)
@@ -62,9 +90,18 @@ Wait for user to adjust until the route feels right.
 
 ### Phase 4: Deep Dive per Stop
 
-For each confirmed stop, use WebSearch to do deep research. Search for: "[stop] best hikes trails", "[stop] wildlife spotting", "[stop] kayak rafting", "[stop] hidden gems blog", "[stop] local restaurants authentic", "[stop] old town walking", "[stop] practical travel tips".
+For each confirmed stop, use WebSearch to do deep research.
+
+**Search for experiences:** "[stop] best hikes trails", "[stop] wildlife spotting", "[stop] kayak rafting", "[stop] hidden gems blog", "[stop] old town walking".
+
+**Search for practical logistics (just as important):** "[stop] [activity] booking advance reservation", "[stop] [wildlife] best time tide", "[stop] boat trip booking [year]", "[stop] ferry schedule", "[stop] parking [trailhead]". The most valuable research is practical: booking requirements, seasonal timing, tide dependencies, and operational details for each recommended activity.
 
 Present for each stop:
+
+**📍 Drive-by Highlights (from previous stop)**
+- Landmarks, viewpoints, and brief detours on the drive in
+- Listed as the first activities in this stop, tagged as Drive-by
+- Include GPS coordinates or Google Maps links where possible
 
 **Adventures**
 - Hikes with difficulty rating, duration, distance, and links to trail guides
@@ -79,17 +116,36 @@ Present for each stop:
 - Museums or local events worth visiting
 - Charming villages nearby
 
-**Food & Drink**
-- Authentic local restaurants (not tourist traps)
-- Markets, food specialties, local drinks
-- Must-try dishes for the area
+**🍽️ Where to Eat**
+- **3-4 specific restaurant recommendations** per stop
+- Each with: name, what it's known for, and when to go (e.g., "best for arrival evening", "grab pies for the beach", "book ahead for dinner")
+- This is a dedicated section, separate from food-type activities
 
-**Logistics**
-- Best neighbourhood/village to stay in
-- Road conditions and parking
-- Booking requirements or reservations needed
-- Gear needed (hiking boots, water shoes, etc.)
-- Best time to visit specific spots
+**Activity Card Format**
+
+Every activity card has two distinct sections:
+1. **Description** (the what) — 2-3 sentences max. What is it, why is it special, what will you see/experience.
+2. **Tips** (the how) — rendered in a visually distinct box. Cover: parking, timing, booking requirements, what to combine it with, gear needed, and weather alternatives.
+
+**🏠 Accommodation**
+- Suggest specific area/neighbourhood to stay in and **why** (proximity to trailheads, walking distance to restaurants, views, etc.)
+- Accommodation card with fields for: name, URL, notes, and a visual **BOOKED** / **PENDING** status badge
+- Users fill these in iteratively as they book
+
+**🗓️ Day-by-Day Plan**
+- A structured day plan for this stop
+- Each entry: day in bold, then the plan
+  - **Tue:** Arrive via Plockton, Corrieshalloch Gorge on the way. Settle in, evening walk to the harbour, dinner at [restaurant].
+  - **Wed:** Morning hike to [trail]. Afternoon kayaking. Fish & chips at [place].
+  - **Thu:** Wildlife boat trip (book ahead). Drive to next stop via [drive-by highlight].
+
+**⚠️ Stop Practical Tips**
+- Rendered as a highlighted callout at the bottom of the stop section
+- Area-wide advice: fuel up here (next station is X away), road conditions (single-track with passing places), mobile signal status, midge/weather warnings, grocery shopping reminders, nearest hospital/pharmacy
+
+**Must-see Flagging**
+
+Flag genuinely unmissable activities with an orange **MUST-SEE** badge — e.g., puffin colonies in June, dolphin watching at the right tide, a once-in-a-lifetime viewpoint. This helps users prioritize when they can't do everything. Use sparingly (2-3 per stop max).
 
 **Every recommendation must include a clickable link** to an external source: trail guide, Google Maps, booking site, blog post, or official page.
 
@@ -105,26 +161,42 @@ Generate a React artifact (in Claude Desktop/web) or a standalone HTML file (in 
 
 **Layout:**
 
-**Route Map (top)**
+**Header Image (top)**
+- If the user provides a hero image URL, display it as a full-width banner
+- Fallback chain: external URL → base64 embedded image (if user uploads locally) → gradient with trip title overlay
+- Ask the user if they'd like to add a header image
+
+**Route Map**
 - Leaflet map showing all stops as pins with emoji markers matching the stop character
 - Stops connected by a route polyline with directional arrows showing travel direction
+- Drive-by highlights shown as smaller markers along the route
 - Map auto-fits to show the full route
 
-**Vertical Timeline (middle)**
+**Vertical Timeline**
 - A vertical line with dots at each stop
 - Each dot is a circle with an emoji representing the stop (🏔️ mountain, 🏛️ city, 🏖️ coast, 🌲 forest, etc.)
 - Left side: dates (arrival — departure)
 - Right side: stop name, number of nights, drive time from previous stop
 - Clicking a dot smooth-scrolls to that stop's detail section below
 
-**Stop Detail Sections (bottom)**
+**Stop Detail Sections**
 - One expandable section per stop
 - Header: stop name, dates, nights
-- Activity cards organized by category (Adventures, Culture, Food & Drink, Wildlife)
-- Each card shows: name, duration/difficulty tag, short description, external link
-- Logistics section with practical info
+- **Drive-by highlights** as the first cards, tagged with 📍
+- **Day-by-day plan** as a structured list (one entry per day, day in bold)
+- Activity cards organized by category with automatic emoji badges from TYPE_STYLES
+- Each card has two sections: description (the what) and tips box (the how)
+- **MUST-SEE** badge (orange) on flagged activities
+- **Where to Eat** section with restaurant cards
+- **Accommodation** card with name, URL, notes, and BOOKED/PENDING status badge
+- **Stop Practical Tips** as a highlighted callout at the bottom
 
-**Styling:** Clean, modern, easy to read. Use category colors to distinguish adventures/culture/food/wildlife.
+**Useful Links (bottom of itinerary)**
+- A grid of clickable cards collecting all useful external resources
+- Booking sites, official tourism pages, hiking route guides, ferry operators, tide checkers, weather services, etc.
+- Accumulated from all research throughout the phases
+
+**Styling:** Clean, modern, easy to read. Use category colors and emoji badges to distinguish activity types. Tips render in a visually distinct box. Day plans as structured arrays, never paragraphs.
 
 #### 2. Markdown Summary
 
@@ -145,18 +217,44 @@ Structure:
 [Tailored to destination, season, and planned activities]
 
 ## Stop 1: [Base Name] — X nights
+
+### 📍 Drive-by Highlights (from previous stop)
+- [Landmark] — [why it's worth stopping] — [link]
+
+### 🗓️ Day Plan
+- **Tue:** [Structured day entry]
+- **Wed:** [Structured day entry]
+
+### 🏠 Accommodation
+- **Name:** [Name] | **Status:** BOOKED / PENDING
+- **URL:** [link] | **Notes:** [notes]
+
 ### Adventures
-- [Name] — [difficulty] — [duration] — [link]
+- 🥾 [Name] — [difficulty] — [duration] — [link]
+  - **Tips:** [parking, timing, gear, weather alternatives]
+- 🌿 [Name] — MUST-SEE — [description] — [link]
+  - **Tips:** [booking requirements, best time, what to combine with]
+
 ### Culture
-- [Name] — [description] — [link]
-### Food & Drink
-- [Name] — [description] — [link]
-### Logistics
-- [Practical details]
+- 🏰 [Name] — [description] — [link]
+
+### 🍽️ Where to Eat
+- [Restaurant] — [known for] — [when to go]
+- [Restaurant] — [known for] — [when to go]
+
+### ⚠️ Practical Tips
+- [Fuel, road conditions, signal, weather, groceries]
 
 ## Stop 2: [Base Name] — X nights
 ...
 
 ## Don't Miss — Top 5 Highlights
-[The absolute best experiences across all stops]
+[The absolute best experiences across all stops, with MUST-SEE badges]
+
+## 🔗 Useful Links
+- [Booking site] — [link]
+- [Tourism page] — [link]
+- [Ferry operator] — [link]
+- [Tide checker] — [link]
+- [Hiking guides] — [link]
 ```
