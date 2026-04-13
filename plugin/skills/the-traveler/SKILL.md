@@ -24,13 +24,19 @@ Every activity card gets an automatic emoji badge based on its type:
 | Type | Emoji | Badge Color |
 |------|-------|-------------|
 | Hiking | 🥾 | Green |
+| Cycling / eBike | 🚴 | Lime |
+| Kayaking | 🛶 | Cyan |
+| Rafting | 🚣 | Blue |
+| Sailing / Boat | ⛵ | Sky |
+| Swimming / Beach | 🏊 | Aqua |
+| Horse Riding | 🏇 | Brown |
+| Climbing / Via Ferrata | 🧗 | Slate |
 | Culture | 🏰 | Purple |
 | Food | 🍽️ | Orange |
-| Whisky/Drinks | 🥃 | Amber |
-| Nature/Wildlife | 🌿 | Teal |
-| Drive-by | 📍 | Blue |
-| Water Sports | 🚣 | Cyan |
+| Whisky / Drinks | 🥃 | Amber |
+| Nature / Wildlife | 🌿 | Teal |
 | Photography | 📸 | Pink |
+| Drive-by | 📍 | Indigo |
 
 Apply these automatically to every activity card in both the interactive itinerary and markdown output.
 
@@ -105,10 +111,17 @@ Present for each stop:
 
 **Adventures**
 - Hikes with difficulty rating, duration, distance, and links to trail guides
-- Water sports (rafting, kayaking) with operators/links if applicable
+- **Cycling / eBike rentals** — scenic routes, rental shops with booking info, e-bike vs regular bike options, route difficulty and duration
+- **Kayaking** — rental operators, guided tours vs self-guided, put-in locations, skill level required
+- **Rafting** — operators, grade of rapids, season, advance booking requirements
+- **Sailing / boat trips** — charter operators, skippered vs bareboat, day trips vs multi-day
+- **Climbing / via ferrata** — routes, gear rental, guides
+- **Horse riding** — trail rides, stables, experience level
 - Wildlife spotting locations — what animals, best time of day, best season
 - Photography spots — landscapes, animals, viewpoints
 - Hidden beaches or natural swimming spots
+
+For any rental or guided activity, explicitly search for: "[stop] [activity] rental booking", "[stop] [activity] operator reviews", "[stop] [activity] season price".
 
 **Culture**
 - Old towns, historic quarters — what to see, why it's special
