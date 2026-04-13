@@ -191,12 +191,17 @@ Generate two deliverables:
 
 Generate a React artifact (in Claude Desktop/web) or a standalone HTML file (in Claude Code, using React via CDN + Leaflet via CDN + Tailwind via CDN).
 
-**Layout:**
+**Images throughout — include `image` fields with graceful fallbacks**
 
-**Header Image (top)**
-- If the user provides a hero image URL, display it as a full-width banner
-- Fallback chain: external URL → base64 embedded image (if user uploads locally) → gradient with trip title overlay
-- Ask the user if they'd like to add a header image
+Every place the user might want a photo gets an optional `image` field in the data schema. Leave each as `image: ""` with a `// paste URL here` comment so the user knows where to drop values.
+
+- **Trip header image (top):** Full-width banner. Fallback chain: external URL → base64 embedded image (user upload) → gradient with trip title overlay. Ask the user if they'd like to add one.
+- **Stop banner image:** Full-width background behind each stop header, with a colored gradient overlay derived from `stop.color` (e.g. `linear-gradient(90deg, ${color}dd, ${color}66)`) so text stays readable. Use `onError` to hide the img — the solid color then shows through automatically.
+- **Accommodation thumbnail:** A 56×56 rounded square on the left of the accommodation card. Render the fallback emoji (🏨) **underneath** the img so `onError` reveals it automatically — no state tracking needed.
+
+This pattern (emoji rendered behind, img hides on error) is the cleanest fallback — works without any React state.
+
+**Layout:**
 
 **Route Map**
 - Leaflet map showing all stops as pins with emoji markers matching the stop character
@@ -229,6 +234,23 @@ Generate a React artifact (in Claude Desktop/web) or a standalone HTML file (in 
 - Accumulated from all research throughout the phases
 
 **Styling:** Clean, modern, easy to read. Use category colors and emoji badges to distinguish activity types. Tips render in a visually distinct box. Day plans as structured arrays, never paragraphs.
+
+**Dual-file output for Claude Desktop artifacts**
+
+When producing a React JSX itinerary as an artifact in Claude Desktop, **also produce a small companion HTML preview wrapper**. Why:
+
+1. The artifact sandbox blocks many external image/CDN URLs — users can't see real photos in-app.
+2. Users want to tweak the file on their own machine and see results without a build step.
+
+The wrapper should:
+- Load React + ReactDOM + Babel standalone from unpkg
+- `fetch()` the JSX file (cache-busted), strip the ESM `import` from react (hooks attached to `window` instead), strip `export default`, then `Babel.transform` and eval
+- Render the component into `#root`
+- Surface load/transform errors into a visible error block, not the console
+
+Name the files consistently: `[trip-name]-draft.jsx` (artifact) and `[trip-name]-preview.html` (wrapper). Keep them in the same folder so the relative fetch works.
+
+In Claude Code, the standalone HTML file already serves this purpose — no separate wrapper needed.
 
 #### 2. Markdown Summary
 
