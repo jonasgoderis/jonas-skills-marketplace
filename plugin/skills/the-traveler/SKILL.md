@@ -40,6 +40,21 @@ Every activity card gets an automatic emoji badge based on its type:
 
 Apply these automatically to every activity card in both the interactive itinerary and markdown output.
 
+## Activity Diversity Checklist
+
+When deep-diving a stop, **actively cover each of these broad buckets where the destination supports them** — do not default to hiking + culture only. This is a coverage goal, not a display taxonomy (use TYPE_STYLES for the badges).
+
+- 🥾 **Hiking / walking** — trails at varied difficulty levels
+- 🏰 **Culture & history** — castles, museums, battlefields, old towns
+- 🍽️ **Food & drink** — local specialities, standout restaurants
+- 🥃 **Regional specialty** — whisky in Scotland, wine in Tuscany, cheese in France, etc.
+- 🌿 **Nature & wildlife** — spotting spots, reserves, unique ecosystems
+- 🚴 **Adventure sports** — MTB/eMTB rental, rafting, canyoning, via ferrata, climbing
+- 🛶 **On the water** — sea/loch kayaking, SUP, boat trips, sailing
+- 📍 **Drive-by landmarks** — notable spots on the driving route between stops
+
+If a destination genuinely doesn't support a bucket (e.g. no water in a desert region), skip it explicitly — don't pad with weak options.
+
 ## Formatting Rules
 
 - **Day plans** must be structured arrays (one entry per day), never paragraphs
@@ -146,10 +161,14 @@ Every activity card has two distinct sections:
 - Users fill these in iteratively as they book
 
 **🗓️ Day-by-Day Plan**
-- A structured day plan for this stop
-- Each entry: day in bold, then the plan
+- A structured array — one entry per day, never a paragraph
+- Each entry: day label in bold, then the plan
+- **Split by session (morning / afternoon / evening) when useful** — this makes busy days scannable instead of a wall of text
+- Schema: `{day, text}` objects, where `day` may include session (e.g. "Tue morning", "Thu evening")
   - **Tue:** Arrive via Plockton, Corrieshalloch Gorge on the way. Settle in, evening walk to the harbour, dinner at [restaurant].
-  - **Wed:** Morning hike to [trail]. Afternoon kayaking. Fish & chips at [place].
+  - **Wed morning:** Hike to [trail] — leave early to avoid midges.
+  - **Wed afternoon:** Kayaking out of [harbour], 2hr rental.
+  - **Wed evening:** Fish & chips at [place], sunset walk.
   - **Thu:** Wildlife boat trip (book ahead). Drive to next stop via [drive-by highlight].
 
 **⚠️ Stop Practical Tips**
