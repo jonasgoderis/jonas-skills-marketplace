@@ -11,7 +11,7 @@ The connected folder is the only durable store. The cloud container's filesystem
 
 ## Preconditions
 
-Run inline in the current conversation. Never delegate the whole skill to a subagent — a fresh agent has no memory of this conversation and cannot summarise what it never saw. Steps 4 and 5 delegate deliberately, with everything they need passed explicitly.
+Run inline in the current conversation. Never delegate the whole skill to a subagent — a fresh agent has no memory of this conversation and cannot summarise what it never saw. Steps 5 and 6 delegate deliberately, with everything they need passed explicitly.
 
 1. Confirm a folder is connected (`get_device_info` → `connectedFolders`; in `device_bash` they mount at `$HOME/mnt/<folder-name>`). If none is connected, stop and say so — there is nowhere durable to write.
 2. With more than one folder connected, use the one this session has been working in. If that is ambiguous, ask; if working unattended, use the first and state the assumption.
@@ -28,7 +28,7 @@ Multiple sessions share this folder, so everything written is namespaced per ses
 
 Read `$HANDOFF/.state/$SESSION_ID.json`. If it exists, `last_run` is the cutoff: cover only what has happened since. If it does not exist, the window is the whole conversation.
 
-Read `file_snapshot` from the same file — path, size and mtime for the folder as of the last run. It is what makes the file diff in step 3 reliable rather than guesswork.
+Read `file_snapshot` from the same file — path, size and mtime for the folder as of the last run. It is what makes the file diff in step 4 reliable rather than guesswork.
 
 ## Step 2 — Rescue anything that exists only in the cloud
 
@@ -40,15 +40,25 @@ Do this before writing anything, every run, whether or not a migration is immine
 4. Re-stat every file after committing it and record the size and mtime you observe, never the ones you intended. A guarded commit can decline to write, and a decline that goes unnoticed becomes a confident false claim in the entry.
 5. Source material the user attached in chat (`/mnt/user-data/uploads/`) is equally ephemeral. If the work depends on it and it is not already in the folder, copy it under `sources/`.
 6. Check for published artifacts: `Artifact` with `action: "list"`, `scope: "mine"`. For anything created or updated inside the window with no local counterpart, `action: "read"` it and save the HTML into the folder. This catches pages published by default — dashboards, trackers — that were never deliberately published.
-7. Record every path rescued, with its post-write size and mtime; step 3 needs the list.
+7. Record every path rescued, with its post-write size and mtime; step 4 needs the list.
 
-## Step 3 — Gather raw notes
+## Step 3 — Rescue anything that exists only in the conversation
+
+Step 2 covers files that exist in the cloud container but not the folder. This step covers content that was never a file at all — it exists only as chat text, and it dies with the session just as surely.
+
+Scan the window for substance delivered inline and never written anywhere: explanations and reference material the user asked for, prompts and specs drafted in chat, code shown in a fenced block but never saved, research findings, comparisons, reasoning argued out at length.
+
+Write each one into the folder as its own document — `notes/<topic>.md` for explanation and reference, `sources/` for material the user supplied. Preserve the content; do not compress it into a paragraph. The handoff entry is a briefing and has no room for it, which is precisely why it needs a file of its own. The entry then points at the file rather than trying to contain it.
+
+This step is you deciding what counted as substantive, so err toward saving. When unsure whether something mattered, save it and note the uncertainty rather than dropping it — an unwanted file costs nothing, and an explanation that was never written down cannot be recovered once the session is gone.
+
+## Step 4 — Gather raw notes
 
 Write plain, checkable facts to the scratchpad as `handoff-notes.md`. Facts only, no narrative — this file is the ground truth the verifier grades the draft against.
 
 - Decisions taken since the cutoff, each with the reasoning behind it.
 - Files created or changed in `$ROOT` since the cutoff, diffed against `file_snapshot`. Cross-reference the other entries in `$HANDOFF/entries` and mark anything belonging to another session's workstream — do not claim it.
-- Files rescued in step 2.
+- Files rescued in step 2 and written out in step 3, each with the path it now lives at.
 - Open threads, unresolved questions, and what the next session should do first.
 - Anything account-bound that will not survive a migration: scheduled tasks (`list_triggers`), connectors and skills in use, Claude Project docs.
 - Dead ends worth not repeating.
@@ -57,7 +67,7 @@ Be exhaustive rather than selective. This step runs on the session model and is 
 
 Never write credentials, tokens, API keys or personal data into the notes or any handoff file. Reference where a secret lives instead of reproducing it.
 
-## Step 4 — Draft (Opus)
+## Step 5 — Draft (Opus)
 
 Call `Agent` with `model: "opus"`. Have it read `handoff-notes.md` plus a current listing of `$ROOT`, and write the entry to a scratchpad path. Its prompt must state:
 
@@ -65,6 +75,7 @@ Call `Agent` with `model: "opus"`. Have it read `handoff-notes.md` plus a curren
 - Where the notes are ambiguous, say so rather than choosing a reading.
 - The reader is a future Claude session with zero context reconstructing the state of the work — write a briefing, not a diary. No asides, no editorialising, no narrating the shape of the conversation.
 - Every size, count and path is load-bearing. State only what you observed on disk.
+- Content written out in step 3 is referenced by path under `## Rescued this run`, with a line on what it covers. Never restate its contents in the entry.
 - Use this structure:
 
 ```
@@ -81,12 +92,12 @@ previous_entry: <filename or null>
 ## Where things stand
 ## Decisions since last handoff
 ## Files created or changed
-## Rescued from the cloud this run
+## Rescued this run
 ## Open threads and next steps
 ## Needs your check
 ```
 
-## Step 5 — Verify (Sonnet)
+## Step 6 — Verify (Sonnet)
 
 Call `Agent` with `model: "sonnet"` for an independent check — a separate pass, because a draft cannot grade itself. Give it paths to `handoff-notes.md`, the draft, and a live listing of `$ROOT`. It reports; it does not edit. Ask for:
 
@@ -97,7 +108,7 @@ Call `Agent` with `model: "sonnet"` for an independent check — a separate pass
 - **Contradicted facts** — check every size, mtime, count and path in the draft against the live listing. These are the claims a future session trusts most and the ones a draft gets wrong most easily, because it reports the write it intended rather than the write that landed. A number that disagrees with the listing is a finding, not a rounding difference.
 - **Ephemeral paths** — container-side paths (`/root/…`, `/mnt/…`, scratchpad paths) recorded as though durable. Only paths under `$ROOT` survive the session; anything else must be described in prose, never given as a path to follow.
 
-## Step 6 — Reconcile and write
+## Step 7 — Reconcile and write
 
 1. Fix what the verifier found: strike unsupported claims, restore dropped facts, correct paths.
 2. Anything unresolvable from the notes goes under `## Needs your check`, phrased as an open question. Never guess to fill a gap; never silently drop one.
@@ -112,7 +123,7 @@ Call `Agent` with `model: "sonnet"` for an independent check — a separate pass
 
 If nothing has changed since the last run, do not write an empty entry — say so and stop.
 
-## Step 7 — Report
+## Step 8 — Report
 
 One or two lines in chat: what was written, how many files were rescued, and anything left under `Needs your check`. Do not paste the entry into the conversation.
 
