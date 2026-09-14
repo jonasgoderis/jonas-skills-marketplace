@@ -113,9 +113,10 @@ Call `Agent` with `model: "sonnet"` for an independent check — a separate pass
 1. Fix what the verifier found: strike unsupported claims, restore dropped facts, correct paths.
 2. Anything unresolvable from the notes goes under `## Needs your check`, phrased as an open question. Never guess to fill a gap; never silently drop one.
 3. Write the entry to `$HANDOFF/entries/<YYYY-MM-DD>_<HHMM>_<SESSION_ID>_<SLUG>.md`.
-4. Regenerate `$HANDOFF/CURRENT.md` from all entries. It is derived, never hand-edited, so a collision between two concurrent sessions self-heals on the next run; write to a temp file and rename. It contains:
+4. Regenerate `$HANDOFF/CURRENT.md` from all entries. It is derived, never hand-edited, so a collision between two concurrent sessions self-heals on the next run; write to a temp file and rename. Re-list `entries/` immediately before the rename and rebuild if anything appeared since you read it, so a session that handed off while you were drafting is not dropped from the index. It contains:
    - One line on what the folder is and that this file is where to start.
-   - A section per active workstream — name, session id, last updated, where it stands, next steps, key file paths relative to `$ROOT` — newest first, with workstreams untouched for 60+ days moved to a dormant list at the bottom.
+   - A section per active workstream — name, session id, last updated, where it stands, next steps, key file paths relative to `$ROOT` — newest first, with workstreams untouched for 60+ days moved to a dormant list at the bottom. Where two sessions share a slug, merge them under one heading and list each session id separately rather than emitting the heading twice.
+   - A "Present but not yet indexed" section listing anything in `$ROOT` that no entry accounts for — files another session created but has not yet handed off. Name the paths and say plainly that their state is unknown from here and that running `/session-handoff` in the owning session will give them an entry. Never infer what they are or claim them.
    - A "Recreate on a new account" section: scheduled tasks, connectors, skills and Project docs that will not migrate — and for each skill, where its source lives, so it is reinstalled rather than reconstructed from memory.
    - A pointer to `entries/` for the detail.
 5. Write `$ROOT/README.md` only if none exists, with a short pointer to `_Handoffs/CURRENT.md`, so a new session listing the folder finds the way in.
