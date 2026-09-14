@@ -36,9 +36,11 @@ Do this before writing anything, every run, whether or not a migration is immine
 
 1. List what this session produced: `/mnt/user-data/outputs/`, the working directory, and anything delivered with SendUserFile during the window.
 2. Compare against `$ROOT`. For anything missing, copy it into `/mnt/user-data/outputs/` if it is not already there, then commit it with `device_commit_files` (`stagedPath` → `devicePath`), filing it by the folder conventions already in use. Pass `expectedMtimeMs` when re-committing a file that already exists, so an edit made by the user is never overwritten.
-3. Source material the user attached in chat (`/mnt/user-data/uploads/`) is equally ephemeral. If the work depends on it and it is not already in the folder, copy it under `sources/`.
-4. Check for published artifacts: `Artifact` with `action: "list"`, `scope: "mine"`. For anything created or updated inside the window with no local counterpart, `action: "read"` it and save the HTML into the folder. This catches pages published by default — dashboards, trackers — that were never deliberately published.
-5. Record every path rescued; step 3 needs the list.
+3. `/mnt/user-data/outputs/` accumulates every version staged during the session, so a file sitting there may be an earlier draft rather than the current one. Rescue from the authoritative source — the installed file, the live working copy, the thing actually in use — not from whatever happens to share its name in `outputs/`.
+4. Re-stat every file after committing it and record the size and mtime you observe, never the ones you intended. A guarded commit can decline to write, and a decline that goes unnoticed becomes a confident false claim in the entry.
+5. Source material the user attached in chat (`/mnt/user-data/uploads/`) is equally ephemeral. If the work depends on it and it is not already in the folder, copy it under `sources/`.
+6. Check for published artifacts: `Artifact` with `action: "list"`, `scope: "mine"`. For anything created or updated inside the window with no local counterpart, `action: "read"` it and save the HTML into the folder. This catches pages published by default — dashboards, trackers — that were never deliberately published.
+7. Record every path rescued, with its post-write size and mtime; step 3 needs the list.
 
 ## Step 3 — Gather raw notes
 
@@ -51,6 +53,8 @@ Write plain, checkable facts to the scratchpad as `handoff-notes.md`. Facts only
 - Anything account-bound that will not survive a migration: scheduled tasks (`list_triggers`), connectors and skills in use, Claude Project docs.
 - Dead ends worth not repeating.
 
+Be exhaustive rather than selective. This step runs on the session model and is the only point where the whole conversation is still visible — everything downstream can work solely from what these notes contain. Thin notes produce a fluent, verified, incomplete handoff, and the verifier cannot catch the gap, because the draft will match the thin notes perfectly. Where your own coverage is uncertain, write that down so it reaches `## Needs your check`.
+
 Never write credentials, tokens, API keys or personal data into the notes or any handoff file. Reference where a secret lives instead of reproducing it.
 
 ## Step 4 — Draft (Opus)
@@ -59,7 +63,8 @@ Call `Agent` with `model: "opus"`. Have it read `handoff-notes.md` plus a curren
 
 - Write only what the notes support. Invent nothing, infer nothing, smooth nothing over.
 - Where the notes are ambiguous, say so rather than choosing a reading.
-- The reader is a future Claude session with zero context reconstructing the state of the work — write a briefing, not a diary.
+- The reader is a future Claude session with zero context reconstructing the state of the work — write a briefing, not a diary. No asides, no editorialising, no narrating the shape of the conversation.
+- Every size, count and path is load-bearing. State only what you observed on disk.
 - Use this structure:
 
 ```
@@ -89,6 +94,8 @@ Call `Agent` with `model: "sonnet"` for an independent check — a separate pass
 - **Omissions** — anything in the notes material to resuming the work that the draft dropped.
 - **Bad references** — files named in the draft that do not exist at the path given.
 - **Misattribution** — work credited to this session that the entries show belongs to another.
+- **Contradicted facts** — check every size, mtime, count and path in the draft against the live listing. These are the claims a future session trusts most and the ones a draft gets wrong most easily, because it reports the write it intended rather than the write that landed. A number that disagrees with the listing is a finding, not a rounding difference.
+- **Ephemeral paths** — container-side paths (`/root/…`, `/mnt/…`, scratchpad paths) recorded as though durable. Only paths under `$ROOT` survive the session; anything else must be described in prose, never given as a path to follow.
 
 ## Step 6 — Reconcile and write
 
@@ -97,8 +104,8 @@ Call `Agent` with `model: "sonnet"` for an independent check — a separate pass
 3. Write the entry to `$HANDOFF/entries/<YYYY-MM-DD>_<HHMM>_<SESSION_ID>_<SLUG>.md`.
 4. Regenerate `$HANDOFF/CURRENT.md` from all entries. It is derived, never hand-edited, so a collision between two concurrent sessions self-heals on the next run; write to a temp file and rename. It contains:
    - One line on what the folder is and that this file is where to start.
-   - A section per active workstream — name, session id, last updated, where it stands, next steps, key file paths — newest first, with workstreams untouched for 60+ days moved to a dormant list at the bottom.
-   - A "Recreate on a new account" section: scheduled tasks, connectors, skills and Project docs that will not migrate.
+   - A section per active workstream — name, session id, last updated, where it stands, next steps, key file paths relative to `$ROOT` — newest first, with workstreams untouched for 60+ days moved to a dormant list at the bottom.
+   - A "Recreate on a new account" section: scheduled tasks, connectors, skills and Project docs that will not migrate — and for each skill, where its source lives, so it is reinstalled rather than reconstructed from memory.
    - A pointer to `entries/` for the detail.
 5. Write `$ROOT/README.md` only if none exists, with a short pointer to `_Handoffs/CURRENT.md`, so a new session listing the folder finds the way in.
 6. Update `$HANDOFF/.state/$SESSION_ID.json` with `last_run`, `slug`, `last_entry` and a fresh `file_snapshot`.
@@ -113,4 +120,6 @@ One or two lines in chat: what was written, how many files were rescued, and any
 
 A new session will not read `CURRENT.md` unprompted. Tell the user to open the new project against this folder and say: "read `_Handoffs/CURRENT.md` and catch up."
 
-This skill is itself account-bound. Keep a copy of this file at `$HANDOFF/skill/SKILL.md`, refreshed whenever the skill changes, so it can be recreated on the new account before the first `/session-handoff` runs there.
+This skill is itself account-bound, but it is not account-*only*. Record in the "Recreate on a new account" section where its source actually lives — the plugin or repository it installs from — so it can be reinstalled on the new account before the first `/session-handoff` runs there.
+
+Do not copy this file into the folder. A copy is a second source of truth that goes stale in silence, and a stale copy is worse than none: the entry then describes a version that is not the one running.
