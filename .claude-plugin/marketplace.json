@@ -7,8 +7,8 @@
   "plugins": [
     {
       "name": "claude-skills",
-      "description": "Personal skills collection for Claude.\n\nIncluded skills:\n\n• The Traveler — Collaborative trip planning from a vague idea to a complete interactive itinerary. Deep research into hidden gems, adventure activities, wildlife spotting, old towns, and local food. Produces a visual React itinerary with Leaflet route map, interactive timeline, and detailed stop cards with external links.\n\n• Session Handoff — Saves a durable session handoff into a connected folder, summarising work since the last handoff, rescuing cloud-only files, and refreshing the cross-session index.\n\nMore skills coming soon.",
-      "version": "1.7.1",
+      "description": "Personal skills collection for Claude.\n\nIncluded skills:\n\n• The Traveler — Collaborative trip planning from a vague idea to a complete interactive itinerary. Deep research into hidden gems, adventure activities, wildlife spotting, old towns, and local food. Produces a visual React itinerary with Leaflet route map, interactive timeline, and detailed stop cards with external links.\n\n• Session Handoff — Archives a session into a connected folder on Claude Desktop, rescuing cloud-only files and maintaining a cross-session index that survives a move to another machine or account.\n\n• Context Handover — Hands one local Claude Code session over to the next. Writes a briefing into the project, so the conversation can be cleared without losing the thread, and picks it back up on resume.\n\nMore skills coming soon.",
+      "version": "1.8.0",
       "source": "./plugin",
       "author": {
         "name": "Jonas Goderis"
