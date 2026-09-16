@@ -1,6 +1,6 @@
 ---
 name: session-handoff
-description: Save a session handoff into the connected folder — summarise work since this session's last handoff, rescue files that exist only in the cloud, and refresh the cross-session index. Triggers on /session-handoff.
+description: Archive this session into the connected folder on Claude Desktop — summarise work since the last handoff, rescue files that exist only in the cloud, and refresh the cross-session index. Needs a connected folder. Triggers on /session-handoff.
 ---
 
 # Handoff
