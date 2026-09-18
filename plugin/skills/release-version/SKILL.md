@@ -1,9 +1,9 @@
 ---
-name: versioning
-description: Bump a project's version and open a release pull request with a written changelog. Use when asked to release, cut a version, bump to X.Y.Z, tag a release, or ship what's on this branch. Triggers on /versioning.
+name: release-version
+description: Cut a release — bump the project version, write the changelog entry, open the release pull request, and tag once it merges. Use this whenever the user wants to release, ship, publish or cut a new version, bump to X.Y.Z, prepare release notes or a changelog entry, sync a version across manifests, or get a finished branch out the door. Reach for it even when the word "release" is never said and they just ask what version this should be, or say the work is done and ready to go out. Triggers on /release-version.
 ---
 
-# Versioning
+# Release version
 
 A release is two jobs with opposite requirements. Deciding what changed and saying
 it in readable English needs judgement. Editing manifests, branching, committing,
@@ -16,7 +16,7 @@ yourself, and never guess what changed — you read the commits.
 
 ## The script
 
-`${CLAUDE_PLUGIN_ROOT}/skills/versioning/scripts/version.sh`, or `scripts/version.sh`
+`${CLAUDE_PLUGIN_ROOT}/skills/release-version/scripts/version.sh`, or `scripts/version.sh`
 next to this file if that variable is unset. It acts on the current working
 directory unless given `--repo`.
 
@@ -59,8 +59,8 @@ the runner picked from the lockfile), a `test` target in a `Makefile`,
 If it finds nothing it stops and asks for `--test-cmd '<command>'` or `--no-test`.
 It does not quietly proceed: a release that skipped the tests and a release that
 had none look identical afterwards, and that is exactly the distinction worth
-keeping. Whichever you use, the PR body records it — `Tests: \`npm test\` passed`,
-or `Tests: **skipped**`. Never edit that line out. A PR that implies a green run
+keeping. Whichever you use, the PR body records it: the command that ran and that it
+passed, or that it was skipped. Leave that line alone. A PR that implies a green run
 that never happened is worse than one that admits it skipped.
 
 Tests run in the dry run too. That is the point of the dry run: it proves the

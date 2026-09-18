@@ -41,7 +41,7 @@ description: Use when [trigger conditions]. Examples: "do X", "help with Y".
 Skill content here...
 ```
 
-3. Commit the skill, then run `/versioning` — it bumps both manifests, writes the
+3. Commit the skill, then run `/release-version` — it bumps both manifests, writes the
    changelog entry and opens the release PR
 4. After the merge, run `/plugin update`
 

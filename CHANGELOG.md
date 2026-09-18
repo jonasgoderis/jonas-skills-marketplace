@@ -4,7 +4,7 @@
 
 ### Added
 
-- **Versioning skill.** Bumps the project version and opens a release pull request
+- **Release-version skill.** Bumps the project version and opens a release pull request
   with a written changelog. A shell script owns every state change, so releases are
   reproducible; the model only writes the prose.
 - The script finds the version wherever the project already keeps it — `VERSION`,
@@ -23,7 +23,7 @@
 
 ### Changed
 
-- The "adding a new skill" steps in the README now point at `/versioning` instead
+- The "adding a new skill" steps in the README now point at `/release-version` instead
   of hand-editing both manifests, and the skill layout allows a `scripts/`
   directory.
 
