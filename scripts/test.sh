@@ -61,12 +61,16 @@ done
 
 echo "Scripts"
 scripts=0
-while IFS= read -r sh; do
+while IFS= read -r f; do
   scripts=$((scripts+1))
-  bash -n "$sh" 2>/dev/null && pass "$sh parses" || fail "$sh has a syntax error"
-  [ -x "$sh" ] && pass "$sh is executable" || fail "$sh is not executable"
-done < <(find plugin/skills scripts -name '*.sh' -type f 2>/dev/null | sort)
-[ "$scripts" -gt 0 ] || pass "no shell scripts to check"
+  case "$f" in
+    *.sh) bash -n "$f" 2>/dev/null && pass "$f parses" || fail "$f has a syntax error" ;;
+    *.py) python3 -m py_compile "$f" 2>/dev/null && pass "$f parses" || fail "$f has a syntax error" ;;
+  esac
+  [ -x "$f" ] && pass "$f is executable" || fail "$f is not executable"
+done < <(find plugin/skills scripts \( -name '*.sh' -o -name '*.py' \) -type f 2>/dev/null | sort)
+[ "$scripts" -gt 0 ] || pass "no scripts to check"
+find . -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
 
 echo
 if [ "$fails" -eq 0 ]; then

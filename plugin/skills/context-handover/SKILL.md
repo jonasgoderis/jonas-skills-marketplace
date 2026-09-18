@@ -1,6 +1,6 @@
 ---
 name: context-handover
-description: Hand this Claude Code session over to the next one — write a briefing into the project so the conversation can be cleared without losing the thread, then pick it up on the other side. Triggers on /context-handover.
+description: Hand this Claude Code session over to the next one — write a briefing into the project so the conversation can be cleared without losing the thread. Use it when the session has got long and the answers are getting sloppy, before a /clear or a compact, when stopping for the day to resume tomorrow, or when handing the work to a different session or machine. Reach for it when the user says the context is full or that they are losing the thread, or asks how to carry this over, hand it off, or brief the next session. `/context-handover resume` is the other half — run it at the start of a fresh session to read the last briefing back and pick up the thread. Triggers on /context-handover.
 ---
 
 # Context handover
