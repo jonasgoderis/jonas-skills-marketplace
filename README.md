@@ -24,7 +24,8 @@ Personal Claude Code marketplace with skills, commands, and tools.
 
 ```
 plugin/skills/my-new-skill/
-└── SKILL.md
+├── SKILL.md
+└── scripts/          # optional — anything the skill should do deterministically
 ```
 
 2. Write `SKILL.md` with frontmatter:
@@ -40,8 +41,9 @@ description: Use when [trigger conditions]. Examples: "do X", "help with Y".
 Skill content here...
 ```
 
-3. Bump the version in `.claude-plugin/marketplace.json` and `plugin/.claude-plugin/plugin.json`
-4. Commit, push, then run `/plugin update`
+3. Commit the skill, then run `/versioning` — it bumps both manifests, writes the
+   changelog entry and opens the release PR
+4. After the merge, run `/plugin update`
 
 ## Structure
 
@@ -53,6 +55,7 @@ Skill content here...
 │   │   └── plugin.json         # Plugin metadata
 │   └── skills/
 │       └── <skill-name>/
-│           └── SKILL.md
+│           ├── SKILL.md
+│           └── scripts/        # optional
 └── README.md
 ```
