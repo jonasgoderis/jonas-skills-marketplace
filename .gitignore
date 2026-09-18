@@ -1,1 +1,3 @@
 .claude/handover/
+__pycache__/
+*.pyc

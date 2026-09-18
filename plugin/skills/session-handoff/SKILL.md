@@ -1,6 +1,6 @@
 ---
 name: session-handoff
-description: Archive this session into the connected folder on Claude Desktop — summarise work since the last handoff, rescue files that exist only in the cloud, and refresh the cross-session index. Needs a connected folder. Triggers on /session-handoff.
+description: Archive this session into the connected folder on Claude Desktop — summarise work since the last handoff, rescue files that exist only in the cloud, and refresh the cross-session index. Use it whenever the user is wrapping up or closing out a session, says to save, archive, checkpoint, back up or write up what we did, worries about losing work when the conversation or the container goes away, is moving to another machine, another account or another subscription, has a plan or a trial about to lapse, or asks how the next session picks this up. Reach for it too when they say none of that and simply end a long session that produced files, decisions or research worth keeping. Needs a connected folder. Triggers on /session-handoff.
 ---
 
 # Handoff
@@ -113,14 +113,28 @@ Call `Agent` with `model: "sonnet"` for an independent check — a separate pass
 1. Fix what the verifier found: strike unsupported claims, restore dropped facts, correct paths.
 2. Anything unresolvable from the notes goes under `## Needs your check`, phrased as an open question. Never guess to fill a gap; never silently drop one.
 3. Write the entry to `$HANDOFF/entries/<YYYY-MM-DD>_<HHMM>_<SESSION_ID>_<SLUG>.md`.
-4. Regenerate `$HANDOFF/CURRENT.md` from all entries. It is derived, never hand-edited, so a collision between two concurrent sessions self-heals on the next run; write to a temp file and rename. Re-list `entries/` immediately before the rename and rebuild if anything appeared since you read it, so a session that handed off while you were drafting is not dropped from the index. It contains:
-   - One line on what the folder is and that this file is where to start.
-   - A section per active workstream — name, session id, last updated, where it stands, next steps, key file paths relative to `$ROOT` — newest first, with workstreams untouched for 60+ days moved to a dormant list at the bottom. Where two sessions share a slug, merge them under one heading and list each session id separately rather than emitting the heading twice.
-   - A "Present but not yet indexed" section listing anything in `$ROOT` that no entry accounts for — files another session created but has not yet handed off. Name the paths and say plainly that their state is unknown from here and that running `/session-handoff` in the owning session will give them an entry. Never infer what they are or claim them.
-   - A "Recreate on a new account" section: scheduled tasks, connectors, skills and Project docs that will not migrate — and for each skill, where its source lives, so it is reinstalled rather than reconstructed from memory.
-   - A pointer to `entries/` for the detail.
-5. Write `$ROOT/README.md` only if none exists, with a short pointer to `_Handoffs/CURRENT.md`, so a new session listing the folder finds the way in.
-6. Update `$HANDOFF/.state/$SESSION_ID.json` with `last_run`, `slug`, `last_entry` and a fresh `file_snapshot`.
+4. Write what will not migrate into `$HANDOFF/.state/account-bound.md`, from the step 4 notes: scheduled tasks, connectors, skills and Project docs — and for each skill, where its source lives, so it is reinstalled rather than reconstructed from memory. Rewrite the file each run; it is the whole "Recreate on a new account" section and the one part of the index no entry can supply.
+5. Regenerate `$HANDOFF/CURRENT.md` with `rebuild_current.py`:
+
+   ```
+   rebuild_current.py "$HANDOFF" "$ROOT"
+   ```
+
+   The script is `${CLAUDE_PLUGIN_ROOT}/skills/session-handoff/scripts/rebuild_current.py`, or `scripts/rebuild_current.py` next to this file if that variable is unset. Run it where the folder is mounted, since it reads `entries/` and lists `$ROOT` itself. `--stdout` prints what it would write and touches nothing; `--out` puts the file elsewhere when the folder is only reachable through a staged commit.
+
+   It derives the whole index: one heading per workstream slug, newest first, with two sessions that share a slug merged under one heading and both session ids listed; workstreams untouched for 60 days moved to a dormant list at the bottom; the files in `$ROOT` that no entry accounts for; and the key paths pulled from each entry's `## Files created or changed` and `## Rescued this run`. It writes a temp file and renames, re-listing `entries/` immediately before the rename and rebuilding if anything appeared, so a session that handed off while it was running is not dropped.
+
+   That is why `CURRENT.md` is derived and never hand-edited. It is a view of the entries, so a collision between two concurrent sessions self-heals on the next run — and an edit made directly in it is silently gone at the next handoff. Correct the entry instead.
+
+   The script can only pass on what the entries hold, so write them to carry it. `## Where things stand` and `## Open threads and next steps` are copied verbatim out of the newest entry in each workstream and are the first thing a future session reads, so they have to stand on their own without the rest of the entry. Paths reach the index only when they are in backticks and relative to `$ROOT`; a path buried in prose, or a container-side one, is left out.
+
+   Long lists are capped so the index stays readable — ten key files per
+   workstream and fifty unindexed paths, each with a count of what was left off.
+   The entries hold the rest; `CURRENT.md` is the way in, not the inventory.
+
+   On an entry it cannot parse — a filename that is not `<YYYY-MM-DD>_<HHMM>_<SESSION_ID>_<SLUG>.md`, a missing frontmatter key, a missing or unrecognised `##` section — it names the file and stops without writing, rather than skipping it, because a skipped entry is a workstream that disappears from the index. Fix the entry and run it again.
+6. Write `$ROOT/README.md` only if none exists, with a short pointer to `_Handoffs/CURRENT.md`, so a new session listing the folder finds the way in.
+7. Update `$HANDOFF/.state/$SESSION_ID.json` with `last_run`, `slug`, `last_entry` and a fresh `file_snapshot`.
 
 If nothing has changed since the last run, do not write an empty entry — say so and stop.
 
@@ -132,6 +146,6 @@ One or two lines in chat: what was written, how many files were rescued, and any
 
 A new session will not read `CURRENT.md` unprompted. Tell the user to open the new project against this folder and say: "read `_Handoffs/CURRENT.md` and catch up."
 
-This skill is itself account-bound, but it is not account-*only*. Record in the "Recreate on a new account" section where its source actually lives — the plugin or repository it installs from — so it can be reinstalled on the new account before the first `/session-handoff` runs there.
+This skill is itself account-bound, but it is not account-*only*. Record in `.state/account-bound.md`, which is where the "Recreate on a new account" section comes from, where its source actually lives — the plugin or repository it installs from — so it can be reinstalled on the new account before the first `/session-handoff` runs there.
 
 Do not copy this file into the folder. A copy is a second source of truth that goes stale in silence, and a stale copy is worse than none: the entry then describes a version that is not the one running.
