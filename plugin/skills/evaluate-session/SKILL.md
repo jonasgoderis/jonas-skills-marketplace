@@ -37,7 +37,8 @@ that variable is unset.
 ```
 scripts/digest.py       transcript .jsonl  ->  compact evidence digest (JSON)
 scripts/evaluate.sh     digest -> graded scorecard on disk, plus an index line
-scripts/install-hook.sh writes or removes the SessionEnd hook in settings.json
+scripts/hook.sh         SessionEnd payload -> evaluate.sh, detached
+scripts/enable-hook.sh  switches automatic grading on and off
 ```
 
 `digest.py` is the privacy boundary as much as the cost control. It carries the
@@ -69,35 +70,31 @@ is noise, and producing one teaches the user to ignore the rest.
 
 ## Running it automatically
 
-`install-hook.sh --install` adds a `SessionEnd` hook that grades each session as
-it ends. It is not installed by default and this skill never installs it
-uninvited: it spends the user's tokens on every exit, so that is their decision.
-Say what it will cost before offering — roughly 6,000 input tokens per session on
-Haiku, a fraction of a cent.
+The plugin registers a `SessionEnd` hook in `hooks/hooks.json`, so it is present
+as soon as the plugin is enabled. It does nothing until switched on.
+
+```
+enable-hook.sh --on       grade every session from now on
+               --off      stop; /evaluate-session still works
+               --status   is it on?
+               --test     grade this project's latest session now, through the
+                          same entry point the hook uses
+```
+
+`--on` writes a marker file under the plugin's own data directory. `hook.sh`
+looks for it and exits immediately when it is absent, so an installer who never
+wanted this pays a few milliseconds per exit and nothing else. Nothing is ever
+written to `settings.json`, so there is no path anywhere that a plugin update can
+leave pointing at a directory that no longer exists.
+
+Never switch it on uninvited. It spends the user's tokens on every exit — say
+what it costs first, roughly 6,000 input tokens per session on Haiku, a fraction
+of a cent.
 
 The hook runs detached, so it never delays the exit; the scorecard lands a few
-seconds after the terminal is back. `--status` reports whether it is installed,
-`--uninstall` removes only the entry it added, and both leave any other hooks
-alone.
-
-`install-hook.sh --test` fires the installed hook against the project's most
-recent session, exactly as Claude Code would on exit, and waits for the
-scorecard. It reads the command out of `settings.json` rather than assuming it,
-so it tests the wiring that exists rather than the wiring that was intended — a
-`SessionEnd` hook that is missing or not executable fails silently, and this is
-how that gets caught.
-
-`SessionEnd` also fires on `clear`, `resume`, `logout`, `prompt_input_exit` and
-`other`, so `/clear` triggers it for real. That costs the conversation, which is
-why `--test` exists.
-
-`settings.json` gets one stable path, `~/.claude/hooks/evaluate-session.sh`,
-because the installed plugin lives under a version-numbered directory that every
-update replaces. The launcher behind that path resolves the skill at run time and
-is identical on every machine, so it can be kept under version control alongside
-hand-written hooks; `install-hook.sh` leaves it alone when it finds a symlink.
-Anything machine-specific lives in `~/.claude/hooks/evaluate-session.path`, which
-a normal install from a plugin copy does not write at all.
+seconds after the terminal is back. `SessionEnd` fires on `clear`, `resume`,
+`logout`, `prompt_input_exit` and `other`, so `/clear` triggers it for real — at
+the cost of the conversation, which is why `--test` exists.
 
 `evaluate.sh` exits immediately when `CLAUDE_EVALUATE_SESSION` is set. The
 grading call is itself a Claude session, which ends, which fires `SessionEnd`

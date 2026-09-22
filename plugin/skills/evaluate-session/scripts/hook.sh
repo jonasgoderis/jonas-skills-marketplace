@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
-# SessionEnd hook entry point. Claude Code pipes the hook payload in as JSON on
-# stdin; this pulls out what evaluate.sh needs and hands off, detached.
+# SessionEnd hook entry point, registered by the plugin's hooks/hooks.json.
+# Claude Code pipes the hook payload in as JSON on stdin; this pulls out what
+# evaluate.sh needs and hands off, detached.
 #
-# Kept separate from the settings entry so the command stored in settings.json
-# stays one readable path instead of an unreadable inline pipeline.
+# Plugin hooks are live as soon as the plugin is enabled, and grading every
+# session spends the user's tokens. So this is off until someone asks for it:
+# without the marker file it exits immediately, which costs an installer who
+# never wanted it a few milliseconds per exit and nothing else.
 set -uo pipefail
+
+MARKER="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/evaluate-session}/enabled"
+[ -f "$MARKER" ] || [ -n "${EVALUATE_SESSION_FORCE:-}" ] || exit 0
 
 # The grading run is a Claude session too. Stop here rather than recursing.
 [ -n "${CLAUDE_EVALUATE_SESSION:-}" ] && exit 0

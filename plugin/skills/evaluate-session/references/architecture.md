@@ -19,11 +19,11 @@ schedules.
 │                 architecture.md      this file                               │
 │    assets/      grader-prompt.md     what the grader is asked to produce     │
 │                 secret-patterns.txt  the privacy gate's patterns             │
-│                 hook-launcher.sh     static; copied to ~/.claude/hooks       │
 │    scripts/     digest.py            transcript      -> evidence digest      │
 │                 evaluate.sh          digest          -> scorecard            │
 │                 hook.sh              SessionEnd JSON -> evaluate.sh          │
-│                 install-hook.sh      wires it into settings.json             │
+│                 enable-hook.sh       switches grading on and off             │
+│  plugin/hooks/hooks.json             registers the SessionEnd hook           │
 │                                                                              │
 │  changes: on every commit                                                    │
 └───────────────────────────────┬──────────────────────────────────────────────┘
@@ -40,62 +40,58 @@ schedules.
 │                                                                              │
 │  changes: on every release you install                                       │
 └───────────────────────────────┬──────────────────────────────────────────────┘
-                                │  install-hook.sh --install   (opt-in, once)
+                                │  enable-hook.sh --on          (opt-in, once)
                                 ▼
-┌─ (3) WIRED — your machine's configuration ───────────────────────────────────┐
+┌─ (3) SWITCHED ON — one marker file ──────────────────────────────────────────┐
 │                                                                              │
-│  ~/.claude/settings.json            "SessionEnd" -> ~/.claude/hooks/...      │
-│      often a symlink into a dotfiles repo; the installer writes through it    │
+│  ${CLAUDE_PLUGIN_DATA}/enabled        written by enable-hook.sh --on          │
+│      (or ~/.claude/evaluate-session/enabled outside a plugin install)         │
 │                                                                              │
-│  ~/.claude/hooks/evaluate-session.sh    the launcher. Byte-identical on       │
-│      every machine, so it can be tracked and symlinked like any other hook.   │
-│      install-hook.sh leaves it alone if it finds a symlink.                   │
+│  That is the whole of it. Nothing is written to settings.json, nothing is     │
+│  placed in ~/.claude/hooks, and nothing holds a path that an update can       │
+│  invalidate.                                                                 │
 │                                                                              │
-│  ~/.claude/hooks/evaluate-session.path  optional, one line, a working         │
-│      checkout. Written only when installing from a checkout rather than a     │
-│      plugin copy. Machine-specific — keep it out of version control.          │
-│                                                                              │
-│  changes: once, at install                                                   │
+│  changes: when you switch it on or off                                       │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Why the launcher exists
+## Why a marker file rather than settings.json
 
-Without it, `settings.json` has to name a real file, and every candidate is
-wrong:
+The plugin registers its hook in `hooks/hooks.json`, which is the documented way
+for a plugin to provide one, and `${CLAUDE_PLUGIN_ROOT}` there expands to
+whichever version-numbered directory is current. So the path problem solves
+itself and nothing needs to live in the user's configuration.
+
+What `hooks.json` cannot express is opt-in: a plugin's hooks are live the moment
+the plugin is enabled. Grading every session spends the installer's tokens, and
+nobody should start paying that by installing a collection of skills. The marker
+file is the opt-in, checked on the first line of `hook.sh`:
 
 ```
-  settings.json -> .../claude-skills/1.9.1/skills/.../hook.sh
-                                      └── gone after the next /plugin update
-
-  settings.json -> /Users/you/code/marketplace/plugin/skills/.../hook.sh
-                   └── absent on any other machine, and on this one the moment
-                       the directory is renamed
+  no marker  ->  exit 0                       a few milliseconds, nothing else
+  marker     ->  parse payload, hand off
 ```
 
-A `SessionEnd` hook whose command does not exist fails without a message. The
-launcher is one fixed path that resolves the real location at run time, so the
-thing stored in configuration never has to change.
+The rejected alternative was writing a path into `settings.json`. It needed a
+launcher script at a stable location to survive plugin updates, a per-machine
+file to find a working checkout, and careful handling of a settings file that is
+usually a symlink into a dotfiles repo. Three moving parts, all of them able to
+fail silently, to avoid one `[ -f ]` test.
 
 ## What happens when a session ends
 
 ```
-  /clear  ·  /resume  ·  /logout  ·  exit  ·  install-hook.sh --test
+  /clear  ·  /resume  ·  /logout  ·  exit  ·  enable-hook.sh --test
         │
         ▼
   Claude Code fires SessionEnd, JSON on stdin
   {"transcript_path": "...", "cwd": "...", "reason": "clear"}
         │
         ▼
-  ~/.claude/hooks/evaluate-session.sh          the one stable path
-        │   resolves the skill, first match wins:
-        │     1. $EVALUATE_SESSION_SKILL
-        │     2. newest ~/.claude/plugins/cache/**/skills/evaluate-session
-        │     3. the path named in evaluate-session.path
-        │   nothing resolves -> exit 0, silently. A session ending is not
-        │   the moment to complain.
-        ▼
-  <skill>/scripts/hook.sh
+  ${CLAUDE_PLUGIN_ROOT}/skills/evaluate-session/scripts/hook.sh
+        │   expanded by Claude Code to the current plugin version
+        │
+        │   marker file absent?  ──►  exit 0        automatic grading is off
         │   reads the payload, returns 0 immediately
         │   ──────────────────────────────►  your exit is never delayed
         │
@@ -135,26 +131,16 @@ thing stored in configuration never has to change.
 Scorecards live outside the project on purpose. One is about a person, belongs
 to no codebase, and a public repo should never carry one.
 
-## Installing, uninstalling, checking
+## Switching it on, off, and checking it
 
 ```
-install-hook.sh --install     write the launcher, add the SessionEnd entry.
-                              Merges into existing hooks; never replaces them.
-                              Re-run it after a skill update to refresh the
-                              launcher.
-                --status      is it installed, and are other SessionEnd hooks
-                              present that would also run?
-                --test        fire the installed hook against this project's
-                              most recent session and wait for the scorecard.
-                              Reads the command out of settings.json, so it
-                              tests the wiring that exists.
-                --uninstall   remove only the entry it added. Leaves a
-                              symlinked launcher in place.
+enable-hook.sh --on       write the marker; every session that ends is graded
+               --off      remove it; /evaluate-session still works
+               --status   report whether it is on
+               --test     grade this project's most recent session now, through
+                          the same entry point the hook uses, whether or not
+                          automatic grading is on
 ```
-
-Settings are written atomically: a temp file beside the resolved target,
-validated as JSON, then renamed over it. The symlink is followed, not replaced —
-renaming onto the link would destroy it.
 
 ## Running it without the hook
 

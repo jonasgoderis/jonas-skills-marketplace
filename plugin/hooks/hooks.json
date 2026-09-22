@@ -1,0 +1,16 @@
+{
+  "description": "evaluate-session: grade each finished session against the practice catalogue. Off until switched on with enable-hook.sh --on.",
+  "hooks": {
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/skills/evaluate-session/scripts/hook.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
