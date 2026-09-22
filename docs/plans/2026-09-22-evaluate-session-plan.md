@@ -1,4 +1,4 @@
-# Plan: session scorecard
+# Plan: evaluate-session
 
 Proposed 2026-09-22, from `todo/evaluate-best-practices.md`. Not yet started.
 
@@ -47,7 +47,7 @@ variable instead (below).
 ## Shape
 
 ```
-plugin/skills/session-scorecard/
+plugin/skills/evaluate-session/
 ├── SKILL.md                        the on-demand half, and the install story
 ├── references/
 │   ├── best-practices.md           the numbered catalogue — BP-01 … BP-19
@@ -68,46 +68,62 @@ every run.
 
 ### Name and triggering
 
-Checked against the authority `CLAUDE.md` names — `anthropic-skills:skill-creator`
-— rather than argued from taste.
+Settled: **`evaluate-session`**. The output it produces is still called a
+scorecard — that is the artifact, not the skill.
 
-**There is no naming convention.** skill-creator defines the field as
-"**name**: Skill identifier" and says nothing further about it. The only binding
-rule anywhere is this repo's own: the frontmatter `name` equals the directory
-name. So `session-scorecard` and `practice-review` are an equally valid free
-choice, and the earlier reasoning about one name colliding with `session-handoff`
-was applying description logic to the wrong field.
+The reasoning that was offered for it does not survive checking, so it is
+recorded here to stop it being re-derived. **There is no verb or gerund
+convention for skill names.** Checked in three places:
 
-`session-scorecard` stands, on the weak grounds that it is what you would type.
+- `skill-creator`, which `CLAUDE.md` names as the authority, defines the field as
+  "**name**: Skill identifier" and says nothing else about it.
+- The only rule enforced anywhere is in `skill-creator/scripts/quick_validate.py`:
+  kebab-case, lowercase letters, digits and hyphens, no leading or trailing
+  hyphen, no consecutive hyphens. That is the whole of it.
+- Empirically, across the 25 skills in Anthropic's official plugin marketplace,
+  nouns outnumber verbs roughly four to one — `skill-development`,
+  `hook-development`, `plugin-structure`, `frontend-design`, `session-report`,
+  `claude-security`. The verb-first ones are a minority (`build-mcp-server`,
+  `build-mcpb`, `m5-onboard`) and there is a single gerund (`writing-rules`).
 
-**The description is where all the guidance lives**, and it points the opposite
-way from what this plan previously said. skill-creator is emphatic that Claude
-*under*-triggers and that descriptions should therefore lean pushy — "include
-cases where the user doesn't explicitly name the skill", "even if they don't
-explicitly ask". An earlier draft of this section proposed deliberately narrowing
-the scorecard's description to avoid competing with `context-handover` and
-`session-handoff`. That is a real tension: pushiness risks grabbing "I'm done for
-the day", narrowness risks never firing at all.
+The likely source of the belief is real, and worth keeping straight: this repo's
+`CLAUDE.md` does say **"Imperative instructions. 'Read the commits', not 'you
+should read'."** That rule is about the instruction prose inside `SKILL.md`. It
+does not reach the `name` field.
 
-**The resolution is measurement, not judgement.** skill-creator provides for
-exactly this case. Its trigger eval set asks for should-trigger queries covering
-"cases where this skill competes with another but should win", and should-not-
-trigger queries that are deliberate near-misses — "the negative cases should be
-genuinely tricky". That is precisely the sibling-collision question, decided by
-observed trigger rate rather than by anyone's intuition.
+So `evaluate-session` is valid — kebab-case, verb-first like a handful of
+Anthropic's own — just not *required*. One reservation, noted and overruled: it
+names the session as the object being evaluated, when the thing actually graded
+is how the user drove it. `evaluate-practices` would have been more precise.
+Since the name does not drive triggering, this is a readability point only.
 
-So: write the description pushy on performance contexts ("how did I do", "grade
-this session", "which practices am I weakest on", and the case where the user
-wants the feedback without asking for it by name), then test it. Do not
-pre-narrow it on the strength of an argument.
+**The description is what triggers, and it gets tested rather than argued.**
+skill-creator is emphatic that Claude under-triggers, so the description leans
+pushy on performance contexts — "how did I do", "grade this session", "which
+practices am I weakest on", and the case where the user wants the feedback
+without naming it. It is not pre-narrowed to avoid competing with
+`context-handover` and `session-handoff`; that competition is settled by the
+trigger evals in Phase 4, whose negative cases are exactly those near-misses.
 
-One thing genuinely is settled without testing: **the hook path is not skill
-triggering.** A `SessionEnd` hook runs a shell command and never matches a
-description against a prompt, so nothing the sibling skills say can suppress the
-automatic scorecard. Only the on-demand `/session-scorecard` path is at stake in
-any of the above.
+Not at stake in any of the above: **the hook path is not skill triggering.** A
+`SessionEnd` hook runs a shell command and never matches a description against a
+prompt, so nothing the sibling skills say can suppress the automatic evaluation.
 
----
+### Prior art — Anthropic's `session-report`
+
+Found while checking the naming question. Anthropic ships an official
+`session-report` skill that reads the same `~/.claude/projects` transcripts, and
+bundles `analyze-sessions.mjs` to parse them.
+
+It is **not** a duplicate: it reports *usage* — tokens, cache hit rate, subagent
+spend, expensive prompts — where this skill judges *practice*. Adjacent, not
+overlapping.
+
+But its analyser already solves the transcript-parsing half of `digest.sh`,
+including multi-session aggregation. Read it before writing `digest.sh` in
+Phase 2 rather than reinventing the parse. Its `--json --since 7d` output shape
+is also a candidate signal source: cache breaks and prompt cost are evidence for
+BP-01 and BP-05 that a transcript read alone would not surface.
 
 ## The catalogue — `references/best-practices.md`
 
@@ -208,7 +224,7 @@ messages from the oldest end, and the digest records that it truncated.
 evaluate.sh --transcript <path> [--reason <r>] [--model haiku] [--out <dir>] [--dry-run]
 ```
 
-1. Guard: if `CLAUDE_SCORECARD_RUNNING` is set, exit 0 immediately. The grading
+1. Guard: if `CLAUDE_EVALUATE_SESSION` is set, exit 0 immediately. The grading
    call is itself a Claude session, which ends, which fires SessionEnd. Without
    this, the first exit forks indefinitely. This is the single most important
    line in the plan and it is four characters of shell.
@@ -350,7 +366,7 @@ is stable and vague than one that is precise and random.
 `versioning-skill`, and committed during the writing of this plan. Sharing one
 working tree means its `git checkout` changes files under this session's feet.
 Recommendation: this work runs in a separate git worktree off `main`, on a branch
-like `session-scorecard`. It touches `plugin/skills/session-scorecard/`, the
+like `session-scorecard`. It touches `plugin/skills/evaluate-session/`, the
 README skill list and the marketplace description — no overlap with the eval work
 except the README, which is a one-line conflict at worst.
 
