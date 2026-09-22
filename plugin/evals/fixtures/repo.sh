@@ -44,6 +44,15 @@ commit() { # date, message
 
 commit '2026-09-14T10:00:00' 'Initial commit'
 
+# A remote the branch could actually go to. Without one, "get it out the door"
+# has nowhere to go: the agent checks, finds no origin, and reasonably says it
+# cannot ship — which tests the fixture rather than the skill. A bare repo in
+# the sandbox's own TMPDIR keeps it off the working tree.
+git init -q --bare "$TMPDIR/origin.git"
+git remote add origin "$TMPDIR/origin.git"
+git push -q -u origin main
+git remote set-head origin main
+
 git checkout -qb add-greeting
 printf 'greeting\n' >> src/app.txt
 commit '2026-09-17T09:30:00' 'Add a greeting to the app'

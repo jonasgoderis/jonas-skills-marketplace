@@ -237,7 +237,7 @@ and gates nothing either — Phase 4 documents it alongside.
 
 ---
 
-## Phase 2 — Trigger suite — RUN 2026-09-22
+## Phase 2 — Trigger suite — DONE 2026-09-22
 
 Eight cases, three runs each: **6/8, $1.99, 65 seconds** at `--concurrency 4`.
 Both failures are consistent (0/3), not stochastic.
@@ -267,6 +267,59 @@ All four negatives hold, including the near miss (*"Create a PR for this
 work."*), so the description is not simply too narrow — it is mis-aimed. It
 over-indexes on the release *decision* and under-indexes on the release
 *artifacts*.
+
+### The fix, and what the failures actually were
+
+Re-running the two failures with traces showed two different causes, and the
+first one was mine:
+
+- **`out-the-door`** was confounded by the fixture. With no `origin`, "get it
+  out the door" has nowhere to go: the agent checked, found no remote and no
+  `gh` auth, and reasonably offered a local merge instead. That tested the
+  fixture, not the skill. The fixture now creates a bare `origin` in the
+  sandbox's own `TMPDIR` and pushes `main` to it. **With a coherent fixture the
+  case still failed** — and told us something better: the agent announced
+  *"pushing the branch and opening a PR against `main`"* and ran `git push`
+  itself, never consulting the skill. That is precisely the outcome the skill
+  exists to prevent.
+- **`write-the-changelog`** needed no fixture change. The agent ran `git log`,
+  read the diff and wrote the changelog inline, in two turns.
+
+So both failures share one root cause, and it is not vocabulary — the phrases
+*"get a finished branch out the door"* and *"prepare release notes or a
+changelog entry"* were already in the description, word for word. Both requests
+**look like one-step jobs**, so the model simply does them. This is the
+mechanism `skill-creator` documents: Claude declines to consult a skill for work
+it believes it can handle directly, however well the description matches.
+
+The fix was to stop listing topics and give the model the reason: those requests
+read like one-step jobs, and doing them by hand skips the manifest sync, the
+test gate and the approval step. One sentence protects the near miss —
+*"A pull request for work still in progress is not a release; finishing
+something and sending it out is."* — because the rest of the change pushes hard
+towards pull requests and `open-a-pr` must stay silent.
+
+### Result: 8/8
+
+| Case | Kind | Before | After |
+| --- | --- | --- | --- |
+| `ready-to-ship` | fires | 3/3 | 3/3 |
+| `next-version` | fires | 3/3 | 3/3 |
+| `out-the-door` | fires | **0/3** | **3/3** |
+| `write-the-changelog` | fires | **0/3** | **3/3** |
+| `bump-a-dependency` | silent | 3/3 | 3/3 |
+| `node-version-question` | silent | 3/3 | 3/3 |
+| `what-changed` | silent | 3/3 | 3/3 |
+| `open-a-pr` | silent | 3/3 | 3/3 |
+
+24 of 24 runs, `overallScore` 1.0, $2.61, 128 seconds.
+
+**Caveat worth keeping.** The description was tuned against these eight cases
+and now scores full marks on them, so the suite is both the test and the target.
+A perfect score here is evidence the two specific gaps closed without breaking
+the negatives — not evidence the description is good in general. Held-out
+phrasings the description was not written against would be the honest next
+check, and are worth adding before trusting the number.
 
 ### Resolved: git inside the sandbox
 
@@ -417,12 +470,12 @@ Phase 1 — done
 5. ~~Add the test-gate, repo-state and PR-body cases.~~
 6. ~~Run it; fix whatever `version.sh` bugs it surfaces.~~ None surfaced; mutation-tested instead.
 
-Phase 2
-7. Write `scripts/sync-eval-fixtures.sh` and let it own `ready-to-ship/scaffold.sh`.
-8. Add the three remaining positive trigger cases.
-9. Add the four negative cases with `arm: both`.
-10. Run the suite; record the results.
-11. If triggering is wrong, tune the description via `anthropic-skills:skill-creator` and re-run.
+Phase 2 — done
+7. ~~Write `scripts/sync-eval-fixtures.sh` and let it own `ready-to-ship/scaffold.sh`.~~
+8. ~~Add the three remaining positive trigger cases.~~
+9. ~~Add the four negative cases with `arm: both`.~~
+10. ~~Run the suite; record the results.~~
+11. ~~If triggering is wrong, tune the description via `anthropic-skills:skill-creator` and re-run.~~ 6/8 → 8/8.
 
 Phase 3
 12. Grow the fixture: richer history, `marketplace.json`, passing `scripts/test.sh`, bare `origin`, stub `gh`.
