@@ -1,3 +1,6 @@
 .claude/handover/
 __pycache__/
 *.pyc
+todo/
+# Timestamped eval run output
+plugin/evals/results/
