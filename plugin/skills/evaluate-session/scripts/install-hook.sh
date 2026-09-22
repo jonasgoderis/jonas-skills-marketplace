@@ -19,11 +19,13 @@ ASSUME_YES=0
 
 usage() {
   cat <<'USAGE'
-install-hook.sh --install | --status | --uninstall [--scope user|project] [--yes]
+install-hook.sh --install | --status | --uninstall | --test [--scope user|project] [--yes]
 
   --install     add the SessionEnd hook
   --status      report whether it is installed, and where
   --uninstall   remove it again
+  --test        fire the installed hook against this project's most recent
+                session, exactly as Claude Code would on exit
   --scope       user (~/.claude/settings.json, the default) or
                 project (.claude/settings.json in the current directory)
   --yes         skip the confirmation prompt
@@ -32,7 +34,7 @@ USAGE
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --install|--status|--uninstall) ACTION="${1#--}"; shift ;;
+    --install|--status|--uninstall|--test) ACTION="${1#--}"; shift ;;
     --scope) SCOPE="${2:-}"; shift 2 ;;
     --yes|-y) ASSUME_YES=1; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -95,7 +97,53 @@ write_launcher() {
   esac
 }
 
+# ~/.claude/projects holds one directory per project, named for its path with
+# every character that is not a letter or digit replaced by a dash.
+transcript_dir() {
+  printf '%s/.claude/projects/%s\n' "$HOME" \
+    "$(printf '%s' "$1" | sed 's/[^A-Za-z0-9]/-/g')"
+}
+
 case "$ACTION" in
+  test)
+    installed_cmd || { echo "install-hook: not installed in $SETTINGS" >&2; exit 1; }
+    # Read the command out of settings rather than assuming it, so this tests
+    # the wiring that actually exists instead of the wiring we intended.
+    CMD="$(current_cmds | head -1)"
+    CMD="${CMD/#\~/$HOME}"
+    [ -x "$CMD" ] || { echo "install-hook: $CMD is not executable — the hook would fail silently" >&2; exit 1; }
+
+    DIR="$(transcript_dir "$PWD")"
+    [ -d "$DIR" ] || { echo "install-hook: no transcripts for this project at $DIR" >&2; exit 1; }
+    LATEST="$(find "$DIR" -maxdepth 1 -name '*.jsonl' -type f -exec stat -f '%m %N' {} + 2>/dev/null \
+              || find "$DIR" -maxdepth 1 -name '*.jsonl' -type f -printf '%T@ %p\n' 2>/dev/null)"
+    LATEST="$(printf '%s\n' "$LATEST" | sort -rn | head -1 | cut -d' ' -f2-)"
+    [ -n "$LATEST" ] && [ -f "$LATEST" ] || { echo "install-hook: no session transcript found in $DIR" >&2; exit 1; }
+
+    echo "hook:       $CMD"
+    echo "transcript: $(basename "$LATEST")"
+    BEFORE="$(find "$HOME/.claude/scorecards" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')"
+    printf '{"session_id":"test","transcript_path":"%s","cwd":"%s","reason":"prompt_input_exit"}' \
+      "$LATEST" "$PWD" | "$CMD"
+    rc=$?
+    echo "hook returned $rc immediately (it grades detached, so an exit here is not the result)"
+    echo -n "waiting for a scorecard"
+    for _ in $(seq 1 30); do
+      sleep 5
+      AFTER="$(find "$HOME/.claude/scorecards" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')"
+      if [ "$AFTER" -gt "$BEFORE" ]; then
+        echo
+        echo "wrote: $(find "$HOME/.claude/scorecards" -maxdepth 1 -name '*.md' -newermt '-3 minutes' 2>/dev/null | head -1)"
+        exit 0
+      fi
+      echo -n "."
+    done
+    echo
+    echo "no scorecard after 150s. A session under the minimum turn count is" >&2
+    echo "skipped on purpose; otherwise run evaluate.sh directly to see the error." >&2
+    exit 1
+    ;;
+
   status)
     if installed_cmd; then
       echo "installed in $SETTINGS"

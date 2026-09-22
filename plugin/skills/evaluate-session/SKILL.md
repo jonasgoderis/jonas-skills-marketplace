@@ -80,6 +80,25 @@ seconds after the terminal is back. `--status` reports whether it is installed,
 `--uninstall` removes only the entry it added, and both leave any other hooks
 alone.
 
+`install-hook.sh --test` fires the installed hook against the project's most
+recent session, exactly as Claude Code would on exit, and waits for the
+scorecard. It reads the command out of `settings.json` rather than assuming it,
+so it tests the wiring that exists rather than the wiring that was intended — a
+`SessionEnd` hook that is missing or not executable fails silently, and this is
+how that gets caught.
+
+`SessionEnd` also fires on `clear`, `resume`, `logout`, `prompt_input_exit` and
+`other`, so `/clear` triggers it for real. That costs the conversation, which is
+why `--test` exists.
+
+`settings.json` gets one stable path, `~/.claude/hooks/evaluate-session.sh`,
+because the installed plugin lives under a version-numbered directory that every
+update replaces. The launcher behind that path resolves the skill at run time and
+is identical on every machine, so it can be kept under version control alongside
+hand-written hooks; `install-hook.sh` leaves it alone when it finds a symlink.
+Anything machine-specific lives in `~/.claude/hooks/evaluate-session.path`, which
+a normal install from a plugin copy does not write at all.
+
 `evaluate.sh` exits immediately when `CLAUDE_EVALUATE_SESSION` is set. The
 grading call is itself a Claude session, which ends, which fires `SessionEnd`
 again — without the guard the first exit forks until something gives out.
