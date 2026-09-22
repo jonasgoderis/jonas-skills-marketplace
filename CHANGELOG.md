@@ -1,6 +1,19 @@
 # Changelog
 
 
+## [1.9.1] - 2026-09-22
+
+### Fixed
+
+- **Installs sitting on 1.9.0 can pick up updates again.** 1.9.0 was published
+  twice with different contents, on 18 and 22 September, so an install that took
+  the first publication saw no version change to update towards and stayed on the
+  older files. This release republishes the current contents under a version that
+  updates do pick up. Coming from 1.9.0, that means everything listed under it:
+  the eval suite and the `version.sh` unit tests, the release-version description
+  and changelog-writing fixes, and the `mktemp` change that lets the release
+  script run where only `TMPDIR` is writable.
+
 ## [1.9.0] - 2026-09-22
 
 ### Added
