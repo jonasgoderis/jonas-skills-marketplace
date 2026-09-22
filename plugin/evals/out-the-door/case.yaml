@@ -1,5 +1,6 @@
 schema_version: "1.1"
 name: out-the-door
+tags: [trigger]
 description: >
   Finished work, no release vocabulary at all. The description claims this triggers; this is the case that checks it.
 context:

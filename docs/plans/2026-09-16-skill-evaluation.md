@@ -1,6 +1,15 @@
 # Skill evaluation for this marketplace
 
-Status: proposal, not yet implemented. Written 2026-09-16.
+Status: superseded in part. Written 2026-09-16 as a survey of the tooling,
+before `release-version` existed. That skill was evaluated on 2026-09-22 —
+see `2026-09-18-release-version-eval.md` for the options and
+`2026-09-18-release-version-eval-plan.md` for what was built and what it
+found. Two claims here were corrected in practice: per-run results live at
+`cases[].arms.with[]`, not `cases[].runs[]`, and a trigger suite needs a
+scaffolded fixture, because the sandbox starts in an empty directory and a
+prompt with no referent is one the skill is right to decline.
+
+The conclusions about the other three skills stand.
 
 How we could evaluate the skills in `claude-skills` before shipping them, using
 the tooling Claude Code actually provides today rather than something we'd build.

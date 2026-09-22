@@ -498,7 +498,34 @@ One case change was legitimate rather than tuning: the prompt now asks to see
 the proposed notes, because the run does not always repeat them in its final
 message and the judge was being asked to grade text that was not there.
 
-## Phase 4 — Wiring and documentation
+## Phase 4 — Wiring and documentation — DONE 2026-09-22
+
+- `scripts/eval.sh` — selector (`trigger`, `behaviour`, a case name, or
+  everything), pinned models, `--no-publish`, `--ablation none`, gate at 0.8,
+  passthrough for anything else. Cases carry `tags: [trigger]` or
+  `[behaviour]` so the selector is a `--tag`, not a fragile name glob.
+- `plugin/evals/README.md` — how to run it, the expected steady state, the
+  fixtures, the `gh` stub, the four grader footguns, and the macOS git note.
+- `README.md` — a Checks table naming the five commands and when each applies.
+  Since nothing gates, that table is what keeps them alive.
+- `2026-09-16-skill-evaluation.md` — marked partly superseded, with the two
+  claims this work corrected.
+
+### Pinned baseline
+
+`claude-sonnet-5`, judge `claude-haiku-4-5`. Worth recording that the models
+are pinned to something **other** than whatever the CLI default was during
+development, and the trigger suite still scores 8/8 — so the description fix is
+not an artifact of one model.
+
+| Selection | Result | Cost |
+| --- | --- | --- |
+| `trigger`, 1 run | 8/8 at 1.00 | $0.87, 48s |
+| `behaviour`, 3 runs | `no-test-command` 1.00, `cut-a-release` 0.87 | $0.83, 57s |
+
+Total spend across Phases 0–4: about **$16**.
+
+
 
 - **New file:** `scripts/eval.sh` — wraps `claude plugin eval plugin` with
   `--trust-plugin`, pinned `--model` and `--judge-model`, `--no-publish`,
@@ -545,11 +572,11 @@ Phase 3 — done
 14. ~~Author case 2 (no test command).~~
 15. ~~Run both; debug the fixture until they run clean.~~
 
-Phase 4
-16. Write `scripts/eval.sh` with pinned models and `--no-publish`.
-17. Write `plugin/evals/README.md`.
-18. Document the three commands and when to run each.
-19. ~~Add `plugin/evals/results/` to `.gitignore`~~ (done in Phase 0); cross-reference this plan from the 2026-09-16 doc.
+Phase 4 — done
+16. ~~Write `scripts/eval.sh` with pinned models and `--no-publish`.~~
+17. ~~Write `plugin/evals/README.md`.~~
+18. ~~Document the three commands and when to run each.~~ Five, in README.md.
+19. ~~Add `plugin/evals/results/` to `.gitignore`~~ (done in Phase 0); ~~cross-reference this plan from the 2026-09-16 doc.~~
 20. Release the work with `/release-version` — a `minor` bump, and a live test of the skill being evaluated.
 
 ---

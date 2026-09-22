@@ -1,5 +1,6 @@
 schema_version: "1.1"
 name: what-changed
+tags: [trigger]
 description: >
   A request to summarise recent work. Reading the commits is something the skill does, but summarising them is not a release.
 context:

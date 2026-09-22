@@ -45,6 +45,18 @@ Skill content here...
    changelog entry and opens the release PR
 4. After the merge, run `/plugin update`
 
+## Checks
+
+None of these gate a release; they are run on purpose.
+
+| Command | When |
+| --- | --- |
+| `scripts/test.sh` | Before pushing. Manifests, skill frontmatter, shell syntax. |
+| `scripts/test-version-sh.sh` | After touching `release-version`'s `version.sh`. 66 unit tests, free and offline. |
+| `scripts/eval.sh` | After changing a skill description or procedure. Costs money; see `plugin/evals/README.md`. |
+| `scripts/sync-eval-fixtures.sh` | After editing an eval fixture. `--check` reports drift. |
+| `claude plugin validate plugin --strict` | Any change to a manifest. |
+
 ## Structure
 
 ```

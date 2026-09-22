@@ -1,5 +1,6 @@
 schema_version: "1.1"
 name: next-version
+tags: [trigger]
 description: >
   Asking only about the version number. Deciding the level is the skill's job, so it should fire rather than being answered off the cuff.
 context:
