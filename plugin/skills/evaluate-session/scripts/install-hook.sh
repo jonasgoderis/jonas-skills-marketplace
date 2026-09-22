@@ -78,8 +78,21 @@ write_settings() {
 
 write_launcher() {
   mkdir -p "$LAUNCHER_DIR" || return 1
-  sed "s|@FALLBACK@|$SKILL_DIR|g" "$SKILL_DIR/assets/hook-launcher.sh" > "$LAUNCHER" || return 1
-  chmod +x "$LAUNCHER"
+  # A symlink here means the user keeps the launcher under version control, so
+  # it is theirs and not ours to overwrite. The launcher is identical everywhere
+  # anyway; only the path file below differs per machine.
+  if [ -L "$LAUNCHER" ]; then
+    echo "launcher: $LAUNCHER is a symlink — left alone"
+  else
+    cp "$SKILL_DIR/assets/hook-launcher.sh" "$LAUNCHER" || return 1
+    chmod +x "$LAUNCHER"
+  fi
+  # Record this checkout only when it is not already reachable as an installed
+  # plugin, so a normal install writes no machine-specific state at all.
+  case "$SKILL_DIR" in
+    "$HOME"/.claude/plugins/cache/*) rm -f "$LAUNCHER_DIR/evaluate-session.path" ;;
+    *) printf '%s\n' "$SKILL_DIR" > "$LAUNCHER_DIR/evaluate-session.path" ;;
+  esac
 }
 
 case "$ACTION" in
@@ -106,7 +119,10 @@ case "$ACTION" in
       # there is nothing to do, or an older one pointing straight at a copy of
       # the skill, which is what the launcher exists to replace.
       if current_cmds | grep -qx "$HOOK_CMD"; then
-        echo "already installed in $SETTINGS"
+        # The settings entry is right, but the launcher behind it may be from an
+        # older version of the skill. Refreshing it is the point of re-running.
+        write_launcher || { echo "install-hook: could not write $LAUNCHER" >&2; exit 2; }
+        echo "already installed in $SETTINGS; launcher refreshed"
         exit 0
       fi
       echo "Replacing an older entry that points directly at a copy of the skill:"
@@ -160,7 +176,8 @@ case "$ACTION" in
          | map(select((.hooks | length) > 0)))
        | if (.hooks.SessionEnd | length) == 0 then del(.hooks.SessionEnd) else . end' "$SETTINGS")" || exit 2
     write_settings "$NEW" || { echo "install-hook: could not write $SETTINGS" >&2; exit 2; }
-    rm -f "$LAUNCHER"
+    [ -L "$LAUNCHER" ] || rm -f "$LAUNCHER"
+    rm -f "$LAUNCHER_DIR/evaluate-session.path"
     echo "removed from $SETTINGS"
     ;;
 esac
