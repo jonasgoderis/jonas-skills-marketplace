@@ -7,7 +7,12 @@
 set -uo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-HOOK_CMD="$HERE/hook.sh"
+SKILL_DIR="$(cd "$HERE/.." && pwd)"
+# settings.json gets one stable, machine-independent path; the launcher behind it
+# resolves the skill at run time. See assets/hook-launcher.sh for why.
+LAUNCHER_DIR="$HOME/.claude/hooks"
+LAUNCHER="$LAUNCHER_DIR/evaluate-session.sh"
+HOOK_CMD="~/.claude/hooks/evaluate-session.sh"
 SCOPE="user"
 ACTION=""
 ASSUME_YES=0
@@ -46,9 +51,35 @@ esac
 
 installed_cmd() {
   [ -f "$SETTINGS" ] || return 1
-  jq -e --arg c "$HOOK_CMD" \
-    '(.hooks.SessionEnd // []) | map(.hooks // []) | flatten
-     | map(select(.command == $c)) | length > 0' "$SETTINGS" >/dev/null 2>&1
+  jq -e '(.hooks.SessionEnd // []) | map(.hooks // []) | flatten
+     | map(select((.command // "") | test("evaluate-session"))) | length > 0' \
+    "$SETTINGS" >/dev/null 2>&1
+}
+
+current_cmds() {
+  jq -r '(.hooks.SessionEnd // []) | map(.hooks // []) | flatten
+     | map(select((.command // "") | test("evaluate-session"))) | .[].command' \
+    "$SETTINGS" 2>/dev/null
+}
+
+write_settings() {
+  # settings.json is commonly a symlink into a dotfiles repo, so resolve it and
+  # replace the file it points at — a plain mv onto the link would destroy it.
+  # Write a temp file first and rename: a truncating write that dies partway
+  # leaves the user with no settings at all.
+  local content="$1" target tmp
+  target="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$SETTINGS")" || return 1
+  tmp="$(mktemp "${target}.XXXXXX")" || return 1
+  printf '%s\n' "$content" > "$tmp" || { rm -f "$tmp"; return 1; }
+  jq -e . "$tmp" >/dev/null 2>&1 || { rm -f "$tmp"; return 1; }
+  chmod --reference="$target" "$tmp" 2>/dev/null || chmod 644 "$tmp"
+  mv -f "$tmp" "$target"
+}
+
+write_launcher() {
+  mkdir -p "$LAUNCHER_DIR" || return 1
+  sed "s|@FALLBACK@|$SKILL_DIR|g" "$SKILL_DIR/assets/hook-launcher.sh" > "$LAUNCHER" || return 1
+  chmod +x "$LAUNCHER"
 }
 
 case "$ACTION" in
@@ -68,10 +99,20 @@ case "$ACTION" in
     ;;
 
   install)
-    [ -x "$HOOK_CMD" ] || { echo "install-hook: $HOOK_CMD is missing or not executable" >&2; exit 2; }
+    [ -x "$SKILL_DIR/scripts/hook.sh" ] || { echo "install-hook: $SKILL_DIR/scripts/hook.sh is missing or not executable" >&2; exit 2; }
+    MIGRATING=0
     if installed_cmd; then
-      echo "already installed in $SETTINGS"
-      exit 0
+      # An entry already naming this skill is either identical, in which case
+      # there is nothing to do, or an older one pointing straight at a copy of
+      # the skill, which is what the launcher exists to replace.
+      if current_cmds | grep -qx "$HOOK_CMD"; then
+        echo "already installed in $SETTINGS"
+        exit 0
+      fi
+      echo "Replacing an older entry that points directly at a copy of the skill:"
+      current_cmds | sed 's/^/  /'
+      echo
+      MIGRATING=1
     fi
     mkdir -p "$(dirname "$SETTINGS")" || exit 2
     [ -f "$SETTINGS" ] || printf '{}\n' > "$SETTINGS"
@@ -82,6 +123,9 @@ case "$ACTION" in
     # them — other hooks in this file are not ours to remove.
     NEW="$(jq --arg c "$HOOK_CMD" \
       '.hooks //= {} | .hooks.SessionEnd //= []
+       | .hooks.SessionEnd = ((.hooks.SessionEnd)
+           | map(.hooks = ((.hooks // []) | map(select((.command // "") | test("evaluate-session") | not))))
+           | map(select((.hooks | length) > 0)))
        | .hooks.SessionEnd += [{"hooks":[{"type":"command","command":$c}]}]' "$SETTINGS")" || exit 2
 
     echo "About to add to $SETTINGS:"
@@ -95,9 +139,14 @@ case "$ACTION" in
       case "$reply" in y|Y|yes|YES) ;; *) echo "nothing changed"; exit 1 ;; esac
     fi
 
-    cp "$SETTINGS" "$SETTINGS.bak" || exit 2
-    printf '%s\n' "$NEW" > "$SETTINGS" || exit 2
-    echo "installed; previous settings saved to $SETTINGS.bak"
+    write_launcher || { echo "install-hook: could not write $LAUNCHER" >&2; exit 2; }
+    write_settings "$NEW" || { echo "install-hook: could not write $SETTINGS" >&2; exit 2; }
+    echo "launcher: $LAUNCHER"
+    if [ "$MIGRATING" -eq 1 ]; then
+      echo "installed, replacing the older direct path"
+    else
+      echo "installed"
+    fi
     ;;
 
   uninstall)
@@ -106,13 +155,12 @@ case "$ACTION" in
       exit 1
     fi
     # Drop only entries naming this command, then drop groups left empty.
-    NEW="$(jq --arg c "$HOOK_CMD" \
-      '.hooks.SessionEnd = ((.hooks.SessionEnd // [])
-         | map(.hooks = ((.hooks // []) | map(select(.command != $c))))
+    NEW="$(jq '.hooks.SessionEnd = ((.hooks.SessionEnd // [])
+         | map(.hooks = ((.hooks // []) | map(select((.command // "") | test("evaluate-session") | not))))
          | map(select((.hooks | length) > 0)))
        | if (.hooks.SessionEnd | length) == 0 then del(.hooks.SessionEnd) else . end' "$SETTINGS")" || exit 2
-    cp "$SETTINGS" "$SETTINGS.bak" || exit 2
-    printf '%s\n' "$NEW" > "$SETTINGS" || exit 2
-    echo "removed from $SETTINGS; previous settings saved to $SETTINGS.bak"
+    write_settings "$NEW" || { echo "install-hook: could not write $SETTINGS" >&2; exit 2; }
+    rm -f "$LAUNCHER"
+    echo "removed from $SETTINGS"
     ;;
 esac
