@@ -131,7 +131,7 @@ carries `score`, `passed`, `turns`, `costUsd`, `judgeCostUsd`, `error`,
 
 ---
 
-## Phase 1 — `version.sh` unit tests (free, no model)
+## Phase 1 — `version.sh` unit tests (free, no model) — DONE 2026-09-22
 
 The dangerous half. A wrong `write_version` silently corrupts a manifest in
 someone else's repo; no amount of trigger accuracy compensates for that.
@@ -186,6 +186,44 @@ the sources and `CHANGELOG.md`).
 **PR body** — with a passing test command, the body rendered by `--dry-run`
 contains the command and that it passed; with `--no-test`, it says tests were
 skipped. Assert on the dry-run output, not on a real PR.
+
+### Outcome
+
+`scripts/test-version-sh.sh`, 65 checks, all passing in about 20 seconds with no
+API key and no network. Every case builds a throwaway repo under `mktemp -d`
+and runs `version.sh --repo <it>`; a stub `gh` on `PATH` reports itself
+authenticated, logs its argv so a test can assert on what was asked of GitHub,
+and never leaves the machine.
+
+**No `version.sh` bugs surfaced.** The three failures found along the way were
+all in the test harness:
+
+- `--repo` has to follow the subcommand — `version.sh` takes `$1` as the
+  command, so `version.sh --repo X current` is an unknown-command error. Worth
+  knowing; the SKILL.md usage block shows it correctly but it is easy to get
+  backwards.
+- A helper that captured the exit code inside a command substitution never saw
+  it — the subshell's `RC` assignment does not reach the caller, so every
+  negative assertion was reading a stale `0` and passing regardless. This is the
+  bug that makes a test suite worthless while looking green; it is why the
+  harness now sets `VS_OUT`/`RC` as globals and keeps a separate `vso` for the
+  cases that only want output.
+- The fixture committed its test script on the feature branch, so the
+  base-branch test tripped the test gate first and asserted the wrong refusal.
+
+A suite that passes on its first honest run deserves suspicion, so it was
+mutation-tested. Three deliberate breaks in `version.sh`, all caught:
+
+| Mutation | Caught by |
+| --- | --- |
+| `minor` stops resetting the patch | *minor resets the patch* — got `1.10.4` |
+| JSON manifests always take the `jq` reformat path | *changes exactly one line* — got 9/9 and 6/3 — and *the four-space indent survives* |
+| The dirty-tree refusal is dropped | *uncommitted work is not swept into the release* |
+
+The JSON mutation is the one worth noting: it reproduces exactly the failure the
+skill's prose promises against, and the diff-size assertion catches it cleanly.
+
+`claude plugin validate plugin --strict` passes as well.
 
 **Not wired into `scripts/test.sh`.** The script stands alone and is run on
 purpose. The hook, for whenever that changes, is one section in `scripts/test.sh`
@@ -309,12 +347,12 @@ this is that sentence, tested.
 Phase 0 — done
 1. ~~Measure the cost of one trivial eval run; record the figure in this file.~~
 
-Phase 1
-2. Write `scripts/test-version-sh.sh` with the `mkrepo` and `stub_gh` helpers.
-3. Add the detection, multi-source, arithmetic and refusal cases.
-4. Add the dry-run and JSON-editing cases.
-5. Add the test-gate, repo-state and PR-body cases.
-6. Run it; fix whatever `version.sh` bugs it surfaces.
+Phase 1 — done
+2. ~~Write `scripts/test-version-sh.sh` with the `mkrepo` and `stub_gh` helpers.~~
+3. ~~Add the detection, multi-source, arithmetic and refusal cases.~~
+4. ~~Add the dry-run and JSON-editing cases.~~
+5. ~~Add the test-gate, repo-state and PR-body cases.~~
+6. ~~Run it; fix whatever `version.sh` bugs it surfaces.~~ None surfaced; mutation-tested instead.
 
 Phase 2
 7. Write `scripts/sync-eval-fixtures.sh` and let it own `ready-to-ship/scaffold.sh`.
