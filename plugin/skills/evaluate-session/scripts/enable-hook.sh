@@ -8,8 +8,12 @@
 set -uo pipefail
 
 SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# Written to the plugin's data directory when it is known, and always to the
+# fixed path as well, so the hook finds it whichever way it is invoked. Both
+# survive plugin updates.
 MARKER_DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/evaluate-session}"
 MARKER="$MARKER_DIR/enabled"
+FALLBACK="$HOME/.claude/evaluate-session/enabled"
 ACTION=""
 
 usage() {
@@ -45,9 +49,10 @@ latest_transcript() {
 
 case "$ACTION" in
   status)
-    if [ -f "$MARKER" ]; then
+    if [ -f "$MARKER" ] || [ -f "$FALLBACK" ]; then
       echo "on — every session that ends is graded"
-      echo "marker: $MARKER"
+      [ -f "$MARKER" ]   && echo "marker: $MARKER"
+      [ -f "$FALLBACK" ] && [ "$MARKER" != "$FALLBACK" ] && echo "marker: $FALLBACK"
       exit 0
     fi
     echo "off — nothing is graded automatically; /evaluate-session still works"
@@ -55,17 +60,18 @@ case "$ACTION" in
     ;;
 
   on)
-    if [ -f "$MARKER" ]; then echo "already on"; exit 0; fi
-    mkdir -p "$MARKER_DIR" || exit 2
-    date -u +%Y-%m-%dT%H:%M:%SZ > "$MARKER" || exit 2
+    if [ -f "$MARKER" ] || [ -f "$FALLBACK" ]; then echo "already on"; exit 0; fi
+    stamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    mkdir -p "$MARKER_DIR" && printf '%s\n' "$stamp" > "$MARKER" || exit 2
+    mkdir -p "$(dirname "$FALLBACK")" && printf '%s\n' "$stamp" > "$FALLBACK" || exit 2
     echo "on — every session that ends is now graded."
     echo "That is one model call per session, roughly 6,000 input tokens on"
     echo "Haiku, a fraction of a cent. Switch it off with --off."
     ;;
 
   off)
-    if [ ! -f "$MARKER" ]; then echo "already off"; exit 0; fi
-    rm -f "$MARKER" || exit 2
+    if [ ! -f "$MARKER" ] && [ ! -f "$FALLBACK" ]; then echo "already off"; exit 0; fi
+    rm -f "$MARKER" "$FALLBACK" || exit 2
     echo "off — nothing is graded automatically. Scorecards already written are kept."
     ;;
 

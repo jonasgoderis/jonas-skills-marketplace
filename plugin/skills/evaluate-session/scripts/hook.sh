@@ -9,8 +9,13 @@
 # never wanted it a few milliseconds per exit and nothing else.
 set -uo pipefail
 
-MARKER="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/evaluate-session}/enabled"
-[ -f "$MARKER" ] || [ -n "${EVALUATE_SESSION_FORCE:-}" ] || exit 0
+# Two locations, because only a real plugin invocation has CLAUDE_PLUGIN_DATA
+# set. Enabling from a working checkout writes the other one, and a toggle that
+# silently fails to toggle is worse than either path being wrong.
+enabled=0
+[ -n "${CLAUDE_PLUGIN_DATA:-}" ] && [ -f "$CLAUDE_PLUGIN_DATA/enabled" ] && enabled=1
+[ -f "$HOME/.claude/evaluate-session/enabled" ] && enabled=1
+[ "$enabled" = 1 ] || [ -n "${EVALUATE_SESSION_FORCE:-}" ] || exit 0
 
 # The grading run is a Claude session too. Stop here rather than recursing.
 [ -n "${CLAUDE_EVALUATE_SESSION:-}" ] && exit 0
