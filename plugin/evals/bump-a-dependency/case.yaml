@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: bump-a-dependency
+description: >
+  A dependency bump, not a version bump. The word "bump" appears in the skill's description, which is exactly why this one is worth testing.
+context:
+  scaffold_script: scaffold.sh

@@ -237,7 +237,69 @@ and gates nothing either — Phase 4 documents it alongside.
 
 ---
 
-## Phase 2 — Trigger suite
+## Phase 2 — Trigger suite — BLOCKED 2026-09-22, awaiting a decision
+
+The eight cases exist and the suite runs. A one-run smoke pass scored **7/8**
+for **$1.03** in 103 seconds at `--concurrency 4`. Total eval spend across all
+of Phase 0 and Phase 2 so far is **$1.84**.
+
+| Case | Kind | Smoke result |
+| --- | --- | --- |
+| `ready-to-ship` | fires | pass |
+| `next-version` | fires | pass |
+| `out-the-door` | fires | pass |
+| `write-the-changelog` | fires | **fail — skill not called** |
+| `bump-a-dependency` | silent | pass |
+| `node-version-question` | silent | pass |
+| `what-changed` | silent | pass |
+| `open-a-pr` | silent | pass |
+
+### The blocker: git does not work inside the eval sandbox on this machine
+
+`/usr/bin/git` is a 119 KB Xcode Command Line Tools shim that has to write an
+`xcrun` cache into `/var/folders/…/T/`, and the sandbox's write allowlist
+blocks it:
+
+```
+git: error: couldn't create cache file '/var/folders/…/T/xcrun_db-i2vCZE75'
+     (errno=Operation not permitted)
+```
+
+The real 7.6 MB binary is at `/Library/Developer/CommandLineTools/usr/bin/git`
+and cannot be reached from a case. Three routes tested, all closed:
+
+- `execution.env` in `case.yaml` — rejected: *"only EVAL_\* keys can be set
+  from case.yaml. Anything else must come from the operator's shell."*
+- `DEVELOPER_DIR` exported from the operator shell — stripped by the sandbox's
+  env allowlist; 14 `xcrun` errors still in the trace.
+- `PATH` prepended from the operator shell — also stripped; the agent under
+  test even tried setting `DEVELOPER_DIR` itself and failed.
+
+There is no Homebrew git on this machine, though Homebrew itself is installed.
+
+**What it costs.** The scaffold builds its repo fine (it runs as the operator,
+outside the sandbox) but the agent cannot read it with `git`. Runs burn ten to
+fifteen turns fighting the tooling; in the `write-the-changelog` trace the agent
+gave up on `git`, decompressed the git objects with Python, and wrote the
+changelog by hand — never firing the skill. So its failure cannot be attributed:
+it may be a description gap, or it may be an artifact of a degraded environment
+pushing the model towards doing the job manually. The other seven results are
+sound, because firing or not firing happens on turn one, before `git` matters.
+
+Phase 3 is **not possible as designed** until this is resolved: behavioural
+cases need a working `git` and a stub `gh`.
+
+### Options
+
+1. `brew install git` — puts a real binary at `/opt/homebrew/bin/git`. Likely
+   the clean fix, but unverified: whether the sandbox's `PATH` includes
+   `/opt/homebrew/bin` is unknown, and if it does not this changes nothing.
+2. Drop `git` from the fixture — trigger cases become a project with files and
+   no repo. Keeps Phase 2 honest and cheap; kills Phase 3.
+3. Run the suite on Linux or in CI, where `git` is a real binary.
+4. Ship Phase 2 as-is with the distortion recorded, and revisit.
+
+
 
 `plugin/evals/`, one directory per case: `case.yaml` (for the scaffold),
 `prompt.md`, `scaffold.sh`, and `graders/skill-fired.md`.
