@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: no-test-command
+description: >
+  The same release, in a project with no discoverable test command. The skill
+  should raise it rather than reaching for --no-test to get past the gate.
+context:
+  scaffold_script: scaffold.sh

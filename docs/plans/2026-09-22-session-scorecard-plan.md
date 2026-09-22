@@ -1,0 +1,367 @@
+# Plan: session scorecard
+
+Proposed 2026-09-22, from `todo/evaluate-best-practices.md`. Not yet started.
+
+The todo asks for two things that look like one: a written, numbered catalogue of
+AI-use best practices, and a hook that grades a finished session against it. They
+are separable, and the catalogue is the harder and more durable half — the hook is
+plumbing around it.
+
+Two decisions were taken before writing this, and the plan assumes them:
+
+- **The plugin ships the skill, the rubric and the scripts, but no active hook.**
+  A plugin's `hooks/hooks.json` is live the moment the plugin is enabled, so an
+  auto-on hook would spend every installer's tokens on every exit without them
+  asking. Installation of the hook is an explicit step, on this machine too.
+- **Once installed, it runs on every real exit, on Haiku 4.5.** A script
+  compresses the transcript before anything reaches the model, so the graded input
+  is small.
+
+---
+
+## What was verified
+
+Checked directly, so the plan does not rest on assumption:
+
+| Claim | How it was checked |
+| --- | --- |
+| `SessionEnd` is a real hook event on 2.1.278 | present in the CLI binary alongside the other seven events |
+| Hook input carries `transcript_path` | `transcript_path` present in the binary; the field is what makes this feasible at all |
+| `prompt_input_exit` and `other` are SessionEnd reasons | both appear, adjacent, in the binary's reason union |
+| Plugins can ship hooks and reference `${CLAUDE_PLUGIN_ROOT}` | `hooks.json` and `CLAUDE_PLUGIN_ROOT` both present |
+| Transcripts are queryable JSONL | `~/.claude/projects/<slug>/<session-id>.jsonl`, one JSON object per line, `.type` in `user`/`assistant`/`system`/`attachment`/… — parsed a real one with `jq` |
+| A headless grading call is possible | `claude -p --model haiku --output-format json --restricted` — every flag exists |
+
+Not yet verified, and each has a named fallback below: whether `clear` and
+`logout` are also SessionEnd reasons; whether SessionEnd stdout is rendered
+anywhere before the process exits; whether a `SessionStart` hook's stdout reaches
+the next session's context.
+
+`--bare` looked like the clean way to stop the grading run from recursively
+firing the hook, but it refuses OAuth and keychain auth — it wants
+`ANTHROPIC_API_KEY`. Unusable on a subscription. The guard is an environment
+variable instead (below).
+
+---
+
+## Shape
+
+```
+plugin/skills/session-scorecard/
+├── SKILL.md                        the on-demand half, and the install story
+├── references/
+│   ├── best-practices.md           the numbered catalogue — BP-01 … BP-19
+│   └── rubric.md                   how a grade is assigned, for the grader prompt
+├── scripts/
+│   ├── digest.sh                   transcript JSONL → compact evidence digest
+│   ├── evaluate.sh                 digest → graded report on disk
+│   └── install-hook.sh             writes/removes the SessionEnd hook in settings
+└── assets/
+    └── grader-prompt.md            the fixed prompt the headless call is given
+```
+
+Nothing here is invented for this repo's convenience: the catalogue in
+`references/` is the progressive-disclosure rule from `CLAUDE.md` (the rubric is
+long and only needed when the skill fires), and everything in `scripts/` is a
+fixed procedure that a model would otherwise reconstruct slightly differently
+every run.
+
+### Name and triggering
+
+Checked against the authority `CLAUDE.md` names — `anthropic-skills:skill-creator`
+— rather than argued from taste.
+
+**There is no naming convention.** skill-creator defines the field as
+"**name**: Skill identifier" and says nothing further about it. The only binding
+rule anywhere is this repo's own: the frontmatter `name` equals the directory
+name. So `session-scorecard` and `practice-review` are an equally valid free
+choice, and the earlier reasoning about one name colliding with `session-handoff`
+was applying description logic to the wrong field.
+
+`session-scorecard` stands, on the weak grounds that it is what you would type.
+
+**The description is where all the guidance lives**, and it points the opposite
+way from what this plan previously said. skill-creator is emphatic that Claude
+*under*-triggers and that descriptions should therefore lean pushy — "include
+cases where the user doesn't explicitly name the skill", "even if they don't
+explicitly ask". An earlier draft of this section proposed deliberately narrowing
+the scorecard's description to avoid competing with `context-handover` and
+`session-handoff`. That is a real tension: pushiness risks grabbing "I'm done for
+the day", narrowness risks never firing at all.
+
+**The resolution is measurement, not judgement.** skill-creator provides for
+exactly this case. Its trigger eval set asks for should-trigger queries covering
+"cases where this skill competes with another but should win", and should-not-
+trigger queries that are deliberate near-misses — "the negative cases should be
+genuinely tricky". That is precisely the sibling-collision question, decided by
+observed trigger rate rather than by anyone's intuition.
+
+So: write the description pushy on performance contexts ("how did I do", "grade
+this session", "which practices am I weakest on", and the case where the user
+wants the feedback without asking for it by name), then test it. Do not
+pre-narrow it on the strength of an argument.
+
+One thing genuinely is settled without testing: **the hook path is not skill
+triggering.** A `SessionEnd` hook runs a shell command and never matches a
+description against a prompt, so nothing the sibling skills say can suppress the
+automatic scorecard. Only the on-demand `/session-scorecard` path is at stake in
+any of the above.
+
+---
+
+## The catalogue — `references/best-practices.md`
+
+Your list, reorganised into five groups and given stable `BP-nn` identifiers. The
+numbers are the contract: the grader cites them, and you look them up. Once
+published, a number never changes meaning — a retired practice keeps its number
+and gets marked retired.
+
+Each entry gets: the name, one paragraph on what it means and *why* it matters,
+what doing it well looks like, and — this is the part that makes the grading
+honest — how observable it is from a transcript.
+
+**Context and scope**
+- BP-01 Watch the context, hand off before it rots
+- BP-02 Split project context across files instead of one big CLAUDE.md
+- BP-03 Break big tasks into small, checkable steps
+- BP-04 One session, one subject
+- BP-05 Checkpoint knowledge to disk, not to the conversation
+
+**Asking well**
+- BP-06 Be specific — goal, constraints, audience
+- BP-07 Show one concrete example of what you want
+- BP-08 Spell out the format
+- BP-09 Iterate; treat the first answer as a draft
+- BP-10 Don't inject the answer — over-seeding with examples narrows the reply
+- BP-11 Zoom out first, zoom in on request
+
+**Delegation and determinism**
+- BP-12 Send wide, read-heavy work to a subagent
+- BP-13 Offload deterministic work to scripts
+- BP-14 Use reference files in skills so context loads on demand
+
+**Trust**
+- BP-15 Verify; confident and correct are different things
+- BP-16 Read the actual diff before accepting
+- BP-17 Keep a human deciding anything with real consequences
+- BP-18 Mind what you share
+
+**Setup**
+- BP-19 Keep rules in separate `.claude/rules` files
+
+Three observability tiers, because pretending otherwise produces a grade that
+punishes you for things the transcript cannot show:
+
+- **Direct** — BP-03, BP-04, BP-06, BP-07, BP-08, BP-09, BP-10, BP-11, BP-12,
+  BP-18. Visible in what you typed and what happened next.
+- **Indirect** — BP-01, BP-05, BP-13, BP-15, BP-16, BP-17. Inferable from
+  signals (was a handoff written before the context filled, were commits made,
+  did a script exist for the repeated thing) but not proof.
+- **Structural** — BP-02, BP-14, BP-19. Properties of the repo and your config,
+  not of the session. Checked once by `digest.sh` looking at the filesystem, not
+  guessed by the grader.
+
+Ungraded practices still belong in the catalogue. It is a reference you'll read
+outside this hook, and a list that only contains what is convenient to grade is a
+worse list.
+
+---
+
+## `digest.sh` — the part that must not be a model's job
+
+Input: a transcript path. Output: a compact evidence digest, JSON.
+
+It exists for three reasons at once. A 1.8 MB transcript is too expensive to
+grade raw. Extraction is a fixed procedure, so it belongs in a script. And it is
+the privacy boundary: what it does not extract does not reach the grading call.
+
+Extracted:
+
+- Session metadata — id, project, start and end time, duration, turn count.
+- **Every user message, verbatim.** This is the thing being graded; paraphrasing
+  it would grade the paraphrase. Slash-command invocations and the skill
+  preambles they expand into are recorded as `command: /name` and dropped.
+- Assistant turns reduced to a **shape**: tool names in order, counts, whether a
+  subagent was launched, how many files were edited, whether tests ran. Never the
+  prose, never tool output, never file contents.
+- Signals — context-window pressure and compaction events, whether a handover or
+  checkpoint file was written, git commits made during the session.
+- Structural facts, read from the filesystem rather than the transcript: does the
+  project have a `CLAUDE.md` and is it split, does `.claude/rules/` exist, do
+  skills present use `references/`.
+
+Deliberately not extracted: assistant prose, tool results, file contents,
+diffs, environment variables. A transcript is exactly the kind of file that
+contains a pasted token or a client name; a digest that never carries tool output
+cannot leak one by accident. `digest.sh` also refuses to emit a digest whose user
+messages match the secret patterns already used by
+`~/.claude/hooks/guard-outbound.sh`, and says so in the report instead.
+
+Target size: under 15k tokens for a long session. Truncation is by whole user
+messages from the oldest end, and the digest records that it truncated.
+
+---
+
+## `evaluate.sh` — the graded report
+
+```
+evaluate.sh --transcript <path> [--reason <r>] [--model haiku] [--out <dir>] [--dry-run]
+```
+
+1. Guard: if `CLAUDE_SCORECARD_RUNNING` is set, exit 0 immediately. The grading
+   call is itself a Claude session, which ends, which fires SessionEnd. Without
+   this, the first exit forks indefinitely. This is the single most important
+   line in the plan and it is four characters of shell.
+2. Run `digest.sh`. If the session is trivially short, write nothing and exit —
+   a grade on a three-turn session is noise.
+3. `claude -p --model haiku --restricted --permission-mode dontAsk
+   --output-format json`, fed `assets/grader-prompt.md` plus
+   `references/rubric.md` plus the digest. `--restricted` removes Bash and the
+   other execution tools: the grader reads and answers, it does not act.
+4. Write `~/.claude/scorecards/<YYYY-MM-DD>-<HHMM>-<project>.md`. Outside the
+   project, because a scorecard about you is not something any repo should carry
+   — and this repo is public.
+5. Append one line to `~/.claude/scorecards/index.md`: date, project, grade,
+   the two focus practices. That file is the point. One scorecard is a mood; the
+   index is whether you are actually getting better.
+
+The report, as the todo specifies:
+
+```markdown
+# Session scorecard — <project>, <date>
+
+**Grade: B+**
+
+## Focus on
+- **BP-06 — Be specific** — <one line naming what happened, with a turn reference>
+- **BP-03 — Break big tasks into small steps** — <…>
+
+## Did well
+BP-13, BP-16, BP-18
+
+## Not observable this session
+BP-07, BP-17
+```
+
+Two focus items, never more. A list of nine faults gets skimmed and nothing
+changes.
+
+`--dry-run` prints the digest and the prompt, and spends nothing. That is what
+makes the rubric iterable.
+
+---
+
+## Seeing it
+
+SessionEnd runs as the process is tearing down, so whether its stdout renders
+anywhere is unconfirmed. The design does not depend on it:
+
+- `evaluate.sh` runs **detached**, so the grading call never delays your exit.
+  The scorecard lands a few seconds after the terminal is already back.
+- A companion `SessionStart` hook prints one line — `Last session: B+ · focus
+  BP-06, BP-03 · ~/.claude/scorecards/…` — at the top of the next session in the
+  same project. Fallback if SessionStart stdout turns out not to surface: the
+  same line goes in the statusline, or you just read the index.
+
+---
+
+## `install-hook.sh` — opt-in, and reversible
+
+```
+install-hook.sh --install [--scope user|project] [--model haiku]
+install-hook.sh --status
+install-hook.sh --uninstall
+```
+
+Edits `settings.json` with `jq`, merging into an existing `hooks` block rather
+than replacing it — your `PreToolUse` guards must survive this untouched, and a
+model hand-editing that file is exactly the class of thing BP-13 says to script.
+It prints the diff and asks before writing. `--uninstall` removes only the entry
+it added.
+
+The SKILL.md tells the user this step exists and what it will cost them per
+session. A skill that quietly installs a billable hook is the thing we are
+avoiding.
+
+---
+
+## Phases
+
+Each stops cleanly, and the first is useful even if nothing follows it.
+
+**Phase 1 — the catalogue.** `references/best-practices.md`, all nineteen
+entries written out properly, plus `references/rubric.md`. No scripts, no hook.
+This is most of the todo's actual value and the only part that is useless if done
+carelessly. Reviewed by you before anything is built on it.
+
+**Phase 2 — `digest.sh` and on-demand grading.** The digest script, the grader
+prompt, `evaluate.sh`, and a `SKILL.md` that supports `/session-scorecard` on the
+current session. Calibrate on three of your existing transcripts in this project
+— they are real sessions with real variation, and one of them will already be a
+long ugly one. Confirm cost per run before going further.
+
+**Phase 3 — the hook.** `install-hook.sh`, the SessionEnd entry, the recursion
+guard, the detached run, the SessionStart line, the index. Verify the actual
+reason set empirically rather than trusting the binary strings.
+
+**Phase 4 — evals.** No longer optional, because the description tension above
+has to be settled empirically rather than asserted. Two separate things:
+
+- *Trigger cases*, in this repo's existing `plugin/evals/` harness from the
+  release-version work — same `case.yaml` plus `skill-fired` / `skill-not-fired`
+  grader shape already in use. The negatives that matter are the near-misses
+  against the siblings: "wrap this up for tomorrow" should reach
+  `context-handover`, not the scorecard. This is the committed, re-runnable suite.
+- *Description optimisation*, optionally, via skill-creator's own
+  `scripts/run_loop.py` — 20 queries, 60/40 train/test split, three runs per query
+  for a stable trigger rate, up to five proposed rewrites, best picked on the
+  held-out set. A one-off tuning pass rather than something the repo carries.
+
+A grader-consistency case (same digest, three runs, do the grades agree) still
+belongs here too, and is the one that tells us whether the letter grade means
+anything.
+
+Phases 1 and 2 are a session's work. Phase 3 is short but needs live testing.
+
+---
+
+## Things worth deciding with open eyes
+
+**This scores a person.** A letter grade on how you worked is a judgement about
+you, produced by a model, from partial evidence. The plan keeps it defensible
+rather than pretending the problem away: the rubric is a file you can read and
+edit, every finding cites a numbered practice and a turn, practices the
+transcript cannot show are reported as unobservable instead of silently counting
+against you, and the output is advice on a local disk that decides nothing. If it
+ever grows past that — feeding a dashboard, comparing people — that is a
+different thing needing a different conversation.
+
+**It re-sends your session to a model.** Same API the session already used, so no
+new category of exposure, but it is a second transmission and the digest is what
+bounds it. The secret-pattern refusal and the no-tool-output rule are there for
+that reason, not for tidiness.
+
+**Grade stability is the real risk.** An LLM judge given the same input twice can
+return B+ and A-. If Phase 2's calibration shows that, the fix is a coarser scale
+(four bands, not eleven) rather than a more elaborate prompt. Better a grade that
+is stable and vague than one that is precise and random.
+
+**The other session.** Another Claude is working in this checkout, on
+`versioning-skill`, and committed during the writing of this plan. Sharing one
+working tree means its `git checkout` changes files under this session's feet.
+Recommendation: this work runs in a separate git worktree off `main`, on a branch
+like `session-scorecard`. It touches `plugin/skills/session-scorecard/`, the
+README skill list and the marketplace description — no overlap with the eval work
+except the README, which is a one-line conflict at worst.
+
+**Version bump.** A new skill is a `minor`. `/release-version` handles it; the
+manifests are not edited by hand.
+
+---
+
+## Out of scope
+
+Grading anything other than a Claude Code session. Cross-project or
+cross-timeframe analytics beyond the index line. Sending a scorecard anywhere off
+the machine. Any automatic change to how Claude behaves based on a grade — the
+scorecard tells you something, it does not tune anything.

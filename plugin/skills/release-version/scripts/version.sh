@@ -30,6 +30,14 @@ RUN_TESTS=1
 TEST_CMD=""
 TEST_REPORT=""
 
+# BSD mktemp resolves a bare invocation through _CS_DARWIN_USER_TEMP_DIR and
+# ignores TMPDIR, so on macOS it writes to /var/folders even when TMPDIR points
+# elsewhere. Sandboxes and locked-down CI runners allow TMPDIR and not that, and
+# the script then fails on a scratch file rather than on anything real. Asking
+# for an explicit template keeps every temporary file where the environment said
+# to put it, on both BSD and GNU.
+tmpfile() { mktemp "${TMPDIR:-/tmp}/version.sh.XXXXXX"; }
+
 die()  { printf '%s: error: %s\n' "$PROG" "$*" >&2; exit 1; }
 warn() { printf '%s: %s\n' "$PROG" "$*" >&2; }
 say()  { printf '%s\n' "$*"; }
@@ -124,7 +132,7 @@ toml_read() {
 
 write_version() {
   local kind="$1" path="$2" new="$3" f="$REPO/$2" tmp
-  tmp="$(mktemp)"
+  tmp="$(tmpfile)"
   case "$kind" in
     plain)
       printf '%s\n' "$new" > "$tmp"
@@ -150,7 +158,7 @@ json_write() {
   local kind="$1" path="$2" new="$3" f="$REPO/$2" cur esc backup tmp
   need_jq_for "$path"
   cur="$(read_version "$kind" "$path" | head -n1)"
-  backup="$(mktemp)"; tmp="$(mktemp)"
+  backup="$(tmpfile)"; tmp="$(tmpfile)"
   cp "$f" "$backup"
   esc="$(printf '%s' "$cur" | sed 's/[.[\*^$()+?{|]/\\&/g')"
   sed -E "s/(\"version\"[[:space:]]*:[[:space:]]*)\"$esc\"/\\1\"$new\"/g" "$f" > "$tmp"
@@ -161,7 +169,7 @@ json_write() {
     fi
   fi
   cp "$backup" "$f"; rm -f "$backup" "$tmp"
-  tmp="$(mktemp)"
+  tmp="$(tmpfile)"
   case "$kind" in
     json:.version)             jq --indent 2 --arg v "$new" '.version = $v' "$f" > "$tmp" ;;
     'json:.plugins[].version') jq --indent 2 --arg v "$new" '.plugins |= map(.version = $v)' "$f" > "$tmp" ;;
@@ -318,7 +326,7 @@ owned_paths() {
 
 write_changelog() {
   local new="$1" notes="$2" f="$REPO/CHANGELOG.md" entry tmp line
-  entry="$(mktemp)"; tmp="$(mktemp)"
+  entry="$(tmpfile)"; tmp="$(tmpfile)"
   {
     printf '## [%s] - %s\n\n' "$new" "$(date +%Y-%m-%d)"
     cat "$notes"
@@ -448,7 +456,7 @@ cmd_release() {
   preflight_repo
 
   local notes
-  notes="$(mktemp)"
+  notes="$(tmpfile)"
   if [ "$NOTES_FILE" = "-" ]; then cat > "$notes"; else cat "$NOTES_FILE" > "$notes"; fi
   [ -s "$notes" ] || die "the notes file is empty; a release PR needs a description."
 
@@ -512,7 +520,7 @@ cmd_release() {
   run git -C "$REPO" push -u origin "$BRANCH"
 
   local body title
-  body="$(mktemp)"
+  body="$(tmpfile)"
   { cat "$notes"
     printf '\n\n---\n\nVersion: `%s` → `%s`  \n%s\n' "$cur" "$new" "$TEST_REPORT"
   } > "$body"

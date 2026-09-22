@@ -106,6 +106,11 @@ Keep a Changelog structure, `###` headings, only the sections that have content:
   render offline" beats "Added offline rendering to trip itineraries".
 - A commit is not a bullet. Several commits that add one capability are one line;
   a commit that fixes a typo in a commit from an hour ago is no line at all.
+- Collapsing is not the same as dropping. When several commits become one line,
+  that line still has to account for all of them. A branch that adds two things
+  and gets a note mentioning the second, with the first written as though it
+  were already there, understates the release and misleads the reader about
+  what is new.
 - Breaking changes go first, under **Changed**, prefixed **BREAKING:**, and say
   what the reader has to do.
 - No filler. A release with three real changes gets three lines. Padding it to

@@ -400,41 +400,103 @@ tuning is what that skill is for.
 
 ---
 
-## Phase 3 — Behavioural cases with a scaffolded repo
+## Phase 3 — Behavioural cases — DONE 2026-09-22
 
-Two cases. The scaffold mechanics are settled in Phase 2; what this phase adds
-is a **richer fixture** and the harder graders.
+Two cases against a richer fixture (`fixtures/release-repo.sh`): four commits
+mixing two features, a fix for a bug introduced on the same branch, and a README
+typo; two version sources; a passing `scripts/test.sh`; and a bare `origin` in
+the sandbox's `TMPDIR`. `no-test-command` reuses that fixture with a snippet
+appended, so the two cannot drift apart.
 
-The Phase 2 fixture grows into it: five or six commits mixing two features, a
-fix and a typo correction (so the changelog has something to collapse), a
-`.claude-plugin/marketplace.json` alongside the `VERSION`, a `scripts/test.sh`
-that passes, a local bare `origin`, and a stub `gh` on `PATH` that appends its
-argv to a log file and exits 0. Whether that is one fixture for all cases or a
-second variant emitted by the sync script is a call to make when writing it —
-the trigger cases do not need the stub `gh` and are cheaper without it.
+Full suite, ten cases: **overallScore 0.98, 9/10 cases at 1.0**, $1.25 for a
+single-run pass. Per-case at three runs: `no-test-command` 1.0,
+`cut-a-release` 0.87.
 
-**Case 1 — "cut a release for this branch", expecting the skill to stop before
-the PR.** Graders, six of seven free:
+| Grader | Case | 3 runs |
+| --- | --- | --- |
+| `ran-check` | cut-a-release | pass ×3 |
+| `read-the-commits` | cut-a-release | pass ×3 |
+| `no-pr-opened` | cut-a-release | pass ×3 |
+| `version-not-hand-edited` | cut-a-release | pass ×3 |
+| `changelog-reads-the-diff` (llm) | cut-a-release | 1–2 of 3 |
+| `did-not-skip-the-tests` | no-test-command | pass ×3 |
+| `raised-the-missing-tests` (llm) | no-test-command | pass ×3 |
 
-- `tool_order`: a `version.sh check` call precedes any `version.sh release`.
-- `tool_used` on `Bash` with `input_match` for `git log`: the commits were read.
-- `tool_used` on `Bash` with `input_match` for `--dry-run`: the dry run happened.
-- `regex` absent over the transcript: no `gh pr create`.
-- `regex` absent: no `Edit` or `Write` touching `VERSION` or `marketplace.json`.
-- `regex` with `target: {source: file, path: gh.log}`, `match: not_contains`:
-  no `pr create` reached the stub. The run stopped for approval rather than
-  opening a PR unprompted. This is the assertion the whole phase exists for,
-  and Phase 0 confirmed the grader can read a file to make it.
-- one `llm` grader on the proposed notes: every bullet corresponds to a commit
-  in the fixture, the typo-fix commit is not a bullet, and the level is argued
-  from the diff rather than asserted.
+### The gh stub
 
-**Case 2 — no test command.** Same scaffold minus `scripts/test.sh`. Assert the
-run stops and raises the missing tests with the user, and that `--no-test` does
-not appear in any `Bash` call. The skill says not to reach for it by reflex;
-this is that sentence, tested.
+`version.sh`'s preflight needs `gh` present and authenticated or the run stops
+before anything worth measuring. The sandbox has a throwaway home, so the real
+`gh` is never authenticated there, and its PATH cannot be changed from a case.
 
----
+The wrapper at `~/.local/bin/gh` (first on that PATH) `exec`s the real binary
+unless `EVAL_GH_STUB` is set — and `execution.env` in a case may set `EVAL_*`
+keys and nothing else, so only these case files can switch it on. Outside an
+eval it is a pass-through; the host `gh` stays authenticated and unchanged.
+It logs argv to `gh.log` in the workspace, which the fixture adds to
+`.git/info/exclude` so it cannot dirty the tree and trip `version.sh`'s refusal
+to sweep uncommitted work into a release.
+
+### Two real defects found
+
+**`version.sh` used bare `mktemp`.** BSD `mktemp` resolves a bare invocation
+through `_CS_DARWIN_USER_TEMP_DIR` and ignores `TMPDIR`, so it writes to
+`/var/folders` — outside the allowlist of any sandbox, and of locked-down CI.
+The first behavioural run had to shim `mktemp` onto `PATH` to get the release to
+run at all. Eight call sites now go through a `tmpfile()` helper that passes an
+explicit template. Turns for that case dropped 17 → 8 and cost halved.
+`scripts/test-version-sh.sh` pins it structurally, because the failure only
+appears somewhere `TMPDIR` is the sole writable temp directory.
+
+**The notes could understate a release.** Twice, a run collapsed two new
+features into one line phrased as though the first already existed — "the app
+now prints a parting message *after its greeting*", when the greeting was also
+new on that branch. Collapsing commits is right; dropping one of them is not.
+`SKILL.md` gained a line saying so.
+
+### Grader footguns, all found the hard way
+
+Three ways a grader here silently measures nothing or the wrong thing. Each
+cost a run to find, so they are worth stating.
+
+- **`min` defaults to 1.** A "must not happen" grader written with only
+  `max: 0` becomes `expected 1..0` and fails every run, forever. Both `min: 0`
+  and `max: 0` are needed. The mirror image of the `arm: both` trap: that one
+  passes while asserting nothing, this one fails while asserting nothing.
+- **`input_match` runs against the serialised JSON tool input.** The skill
+  invokes its script by absolute path, so the command contains
+  `version.sh\" check` — a pattern of `version\.sh\s+check` never matches.
+  `\S*` between them does.
+- **A `regex` grader on `target: trace` cannot tell use from mention.** An
+  assertion that `--no-test` never appears failed a run whose actual words were
+  *"I'd rather not just pass `--no-test` and quietly release"* — exemplary
+  behaviour, marked wrong. The same mistake failed a run for explaining why it
+  had excluded the README typo. Where the claim is "the skill did not *do* X",
+  `tool_used` with `min: 0, max: 0` is the right instrument, because it only
+  ever sees tool calls.
+
+### The llm grader is advisory, not a gate
+
+`changelog-reads-the-diff` is the one grader that will not settle. It has
+earned its place — it twice caught the understated-notes defect above, which no
+deterministic grader could see — but across six three-run sittings it scored
+anywhere from 0/3 to 2/3 on output a careful reader would accept, and moving it
+between `focus: last_message` and `focus: trace` changed the verdict more than
+the skill's behaviour did.
+
+That matches what this plan assumed at the outset: judge verdicts get noisier
+the longer the text, and release notes sit right at the edge. Two consequences
+worth honouring rather than tuning away:
+
+- **Do not run the behavioural cases at `--threshold 1.0`.** With every
+  deterministic grader green, `cut-a-release` still lands at 0.8–0.87. That is
+  the healthy steady state, not a regression.
+- **Read a failure before believing it.** The four deterministic graders on
+  that case have not produced a false result once. The judge has produced
+  several.
+
+One case change was legitimate rather than tuning: the prompt now asks to see
+the proposed notes, because the run does not always repeat them in its final
+message and the judge was being asked to grade text that was not there.
 
 ## Phase 4 — Wiring and documentation
 
@@ -477,11 +539,11 @@ Phase 2 — done
 10. ~~Run the suite; record the results.~~
 11. ~~If triggering is wrong, tune the description via `anthropic-skills:skill-creator` and re-run.~~ 6/8 → 8/8.
 
-Phase 3
-12. Grow the fixture: richer history, `marketplace.json`, passing `scripts/test.sh`, bare `origin`, stub `gh`.
-13. Author case 1 with its seven graders.
-14. Author case 2 (no test command).
-15. Run both; debug the fixture until they run clean.
+Phase 3 — done
+12. ~~Grow the fixture: richer history, `marketplace.json`, passing `scripts/test.sh`, bare `origin`, stub `gh`.~~
+13. ~~Author case 1 with its seven graders.~~ Five; two were unassertable.
+14. ~~Author case 2 (no test command).~~
+15. ~~Run both; debug the fixture until they run clean.~~
 
 Phase 4
 16. Write `scripts/eval.sh` with pinned models and `--no-publish`.

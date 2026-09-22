@@ -376,6 +376,20 @@ vs release patch --notes-file "$NOTES" --title "Release" --dry-run --no-test
 out="$VS_OUT"
 check_has "skipping tests is recorded in the PR body" 'Tests: **skipped**' "$out"
 
+# ----------------------------------------------------- 10. temporary files --
+echo "Temporary files"
+
+# Found by the behavioural eval, not by these tests: BSD mktemp ignores TMPDIR
+# for a bare invocation and writes to /var/folders, which sandboxes and locked
+# down CI runners do not allow. The release then dies on a scratch file. This
+# is a structural check because the failure only shows up somewhere TMPDIR is
+# the only writable temp directory, which is not here.
+if grep -qE '\$\(mktemp\)' "$VERSION_SH"; then
+  fail "a bare mktemp ignores TMPDIR on macOS and fails inside a sandbox"
+else
+  pass "every temporary file honours TMPDIR"
+fi
+
 # ------------------------------------------------------------------- done --
 echo
 if [ "$fails" -eq 0 ]; then

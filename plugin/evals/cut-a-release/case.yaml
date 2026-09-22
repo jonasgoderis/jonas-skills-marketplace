@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: cut-a-release
+description: >
+  A branch that is ready to go. The skill should check first, read the commits,
+  dry run, and then stop for approval instead of opening the pull request.
+context:
+  scaffold_script: scaffold.sh
