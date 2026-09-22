@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: node-version-question
+tags: [trigger]
+description: >
+  A question about a runtime version. Shares the word "version" with the skill and nothing else.
+context:
+  scaffold_script: scaffold.sh

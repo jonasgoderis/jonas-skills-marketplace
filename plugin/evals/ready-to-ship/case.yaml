@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: ready-to-ship
+tags: [trigger]
+description: >
+  A finished branch and a vague "ready to ship" — the skill should fire without the word "release" ever being said.
+context:
+  scaffold_script: scaffold.sh

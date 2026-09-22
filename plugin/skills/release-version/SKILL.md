@@ -1,6 +1,6 @@
 ---
 name: release-version
-description: Cut a release — bump the project version, write the changelog entry, open the release pull request, and tag once it merges. Use this whenever the user wants to release, ship, publish or cut a new version, bump to X.Y.Z, prepare release notes or a changelog entry, sync a version across manifests, or get a finished branch out the door. Reach for it even when the word "release" is never said and they just ask what version this should be, or say the work is done and ready to go out. Triggers on /release-version.
+description: Cut a release — bump the project version, write the changelog entry, open the release pull request, and tag once it merges. Use this whenever the user wants to release, ship, publish or cut a new version, bump to X.Y.Z, prepare release notes or a changelog entry, sync a version across manifests, or get a finished branch out the door. Reach for it even when the word "release" is never said: "the work's done", "get this out the door", "what should the next version be", "write the changelog for this branch". Those read like one-step jobs, which is exactly why they get done by hand — but writing the changelog, editing a version or pushing the branch yourself skips the manifest sync, the test gate and the approval step that make a release reproducible. A pull request for work still in progress is not a release; finishing something and sending it out is. Triggers on /release-version.
 ---
 
 # Release version
@@ -106,6 +106,11 @@ Keep a Changelog structure, `###` headings, only the sections that have content:
   render offline" beats "Added offline rendering to trip itineraries".
 - A commit is not a bullet. Several commits that add one capability are one line;
   a commit that fixes a typo in a commit from an hour ago is no line at all.
+- Collapsing is not the same as dropping. When several commits become one line,
+  that line still has to account for all of them. A branch that adds two things
+  and gets a note mentioning the second, with the first written as though it
+  were already there, understates the release and misleads the reader about
+  what is new.
 - Breaking changes go first, under **Changed**, prefixed **BREAKING:**, and say
   what the reader has to do.
 - No filler. A release with three real changes gets three lines. Padding it to
