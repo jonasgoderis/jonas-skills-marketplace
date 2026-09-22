@@ -237,69 +237,70 @@ and gates nothing either — Phase 4 documents it alongside.
 
 ---
 
-## Phase 2 — Trigger suite — BLOCKED 2026-09-22, awaiting a decision
+## Phase 2 — Trigger suite — RUN 2026-09-22
 
-The eight cases exist and the suite runs. A one-run smoke pass scored **7/8**
-for **$1.03** in 103 seconds at `--concurrency 4`. Total eval spend across all
-of Phase 0 and Phase 2 so far is **$1.84**.
+Eight cases, three runs each: **6/8, $1.99, 65 seconds** at `--concurrency 4`.
+Both failures are consistent (0/3), not stochastic.
 
-| Case | Kind | Smoke result |
+| Case | Kind | 3 runs |
 | --- | --- | --- |
-| `ready-to-ship` | fires | pass |
-| `next-version` | fires | pass |
-| `out-the-door` | fires | pass |
-| `write-the-changelog` | fires | **fail — skill not called** |
-| `bump-a-dependency` | silent | pass |
-| `node-version-question` | silent | pass |
-| `what-changed` | silent | pass |
-| `open-a-pr` | silent | pass |
+| `ready-to-ship` | fires | pass, pass, pass |
+| `next-version` | fires | pass, pass, pass |
+| `out-the-door` | fires | **FAIL, FAIL, FAIL** |
+| `write-the-changelog` | fires | **FAIL, FAIL, FAIL** |
+| `bump-a-dependency` | silent | pass, pass, pass |
+| `node-version-question` | silent | pass, pass, pass |
+| `what-changed` | silent | pass, pass, pass |
+| `open-a-pr` | silent | pass, pass, pass |
 
-### The blocker: git does not work inside the eval sandbox on this machine
+### The finding: the description promises two things it does not deliver
 
-`/usr/bin/git` is a 119 KB Xcode Command Line Tools shim that has to write an
-`xcrun` cache into `/var/folders/…/T/`, and the sandbox's write allowlist
-blocks it:
+Both failures are phrasings the frontmatter explicitly claims:
 
-```
-git: error: couldn't create cache file '/var/folders/…/T/xcrun_db-i2vCZE75'
-     (errno=Operation not permitted)
-```
+- *"…say the work is done and ready to go out"* — but **"The work's done — get
+  it out the door."** never fires the skill.
+- *"prepare release notes or a changelog entry"* — but **"Write the changelog
+  for this branch."** never fires it. The agent runs `git log`, reads the diff
+  and writes the changelog itself, in two turns.
 
-The real 7.6 MB binary is at `/Library/Developer/CommandLineTools/usr/bin/git`
-and cannot be reached from a case. Three routes tested, all closed:
+All four negatives hold, including the near miss (*"Create a PR for this
+work."*), so the description is not simply too narrow — it is mis-aimed. It
+over-indexes on the release *decision* and under-indexes on the release
+*artifacts*.
 
-- `execution.env` in `case.yaml` — rejected: *"only EVAL_\* keys can be set
-  from case.yaml. Anything else must come from the operator's shell."*
-- `DEVELOPER_DIR` exported from the operator shell — stripped by the sandbox's
-  env allowlist; 14 `xcrun` errors still in the trace.
-- `PATH` prepended from the operator shell — also stripped; the agent under
-  test even tried setting `DEVELOPER_DIR` itself and failed.
+### Resolved: git inside the sandbox
 
-There is no Homebrew git on this machine, though Homebrew itself is installed.
+The blocker recorded earlier is fixed, and the cause is worth keeping.
 
-**What it costs.** The scaffold builds its repo fine (it runs as the operator,
-outside the sandbox) but the agent cannot read it with `git`. Runs burn ten to
-fifteen turns fighting the tooling; in the `write-the-changelog` trace the agent
-gave up on `git`, decompressed the git objects with Python, and wrote the
-changelog by hand — never firing the skill. So its failure cannot be attributed:
-it may be a description gap, or it may be an artifact of a degraded environment
-pushing the model towards doing the job manually. The other seven results are
-sound, because firing or not firing happens on turn one, before `git` matters.
+`/opt/homebrew/bin` **is** on the sandbox PATH, ahead of `/usr/bin` — the
+sandbox inherits the operator's PATH rather than synthesising one. But
+`/opt/homebrew/bin/git` is a symlink into `Cellar`, and the sandbox blocks
+*reading* that target while permitting *exec* of it. So the shell's PATH lookup
+skips the entry and falls through to `/usr/bin/git`, the Command Line Tools
+shim that cannot write its xcrun cache. `/opt/homebrew/bin/git --version` works
+when called directly; plain `git` does not.
 
-Phase 3 is **not possible as designed** until this is resolved: behavioural
-cases need a working `git` and a stub `gh`.
+The fix is a two-line wrapper at `~/.local/bin/git` (first on that PATH, owned
+by the operator, no `sudo`) that `exec`s `/opt/homebrew/bin/git`. Outside the
+sandbox it resolves to the same binary the shell already picks, so it changes
+nothing on the host. Removing it: `rm ~/.local/bin/git`.
 
-### Options
+Effect on the suite: xcrun errors per run 14 → 0, the worst case 16 turns → 2,
+and a full 8-case single-run pass 103s/$1.03 → 21s/$0.64.
 
-1. `brew install git` — puts a real binary at `/opt/homebrew/bin/git`. Likely
-   the clean fix, but unverified: whether the sandbox's `PATH` includes
-   `/opt/homebrew/bin` is unknown, and if it does not this changes nothing.
-2. Drop `git` from the fixture — trigger cases become a project with files and
-   no repo. Keeps Phase 2 honest and cheap; kills Phase 3.
-3. Run the suite on Linux or in CI, where `git` is a real binary.
-4. Ship Phase 2 as-is with the distortion recorded, and revisit.
+Routes that do **not** work, so nobody retries them: `execution.env` in a case
+(only `EVAL_*` keys are accepted); `DEVELOPER_DIR` or `PATH` exported from the
+operator shell (stripped by the env allowlist); a shell profile written into the
+sandbox home by the scaffold (the files land correctly but the sandbox does not
+source them). This is macOS-only — on Linux `/usr/bin/git` is a real binary.
 
+### Decision: `--ablation none` for the trigger suite
 
+The no-plugin baseline arm is meaningless here. Without the plugin the skill
+cannot fire, so every positive fails the baseline by construction — which is
+exactly why a `tool_used: Skill` grader is treated as with-only under
+`with-without`. Running one arm halves the cost and loses nothing. The
+behavioural cases in Phase 3 may want the baseline back.
 
 `plugin/evals/`, one directory per case: `case.yaml` (for the scaffold),
 `prompt.md`, `scaffold.sh`, and `graders/skill-fired.md`.
