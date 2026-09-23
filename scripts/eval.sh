@@ -3,7 +3,7 @@
 #
 #   eval.sh              every case
 #   eval.sh trigger      the eight trigger cases only (cheap, ~$2)
-#   eval.sh behaviour    the two behavioural cases only
+#   eval.sh behaviour    the four behavioural cases only
 #   eval.sh <name>       one case by name
 #
 # Anything after the selector is passed through to `claude plugin eval`, so

@@ -29,6 +29,8 @@ what-changed           repo
 open-a-pr              repo
 cut-a-release          release-repo
 no-test-command        release-repo   drop-tests
+stale-docs             release-repo   stale-docs
+internal-fix-no-docs   release-repo   internal-fix
 '
 
 CHECK=0

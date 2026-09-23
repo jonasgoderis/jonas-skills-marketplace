@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: stale-docs
+tags: [behaviour]
+description: >
+  A branch that adds a command-line flag the README does not mention, although
+  the README was updated earlier on the same branch. The skill should document
+  the flag before the dry run, leave the dated plan in docs/plans alone, and
+  record the outcome with --docs-note.
+context:
+  scaffold_script: scaffold.sh
