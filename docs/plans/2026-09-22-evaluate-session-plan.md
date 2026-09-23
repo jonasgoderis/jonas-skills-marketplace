@@ -400,3 +400,45 @@ Grading anything other than a Claude Code session. Cross-project or
 cross-timeframe analytics beyond the index line. Sending a scorecard anywhere off
 the machine. Any automatic change to how Claude behaves based on a grade — the
 scorecard tells you something, it does not tune anything.
+
+---
+
+## Status — 2026-09-23
+
+Built and working end to end on branch `evaluate-session`, based on `main` at
+1.9.1. `scripts/test.sh` passes. Not released; automatic grading ships off.
+
+Measured rather than estimated: digest reduction 127x–659x across seven real
+transcripts, ~6,000 input tokens per grading call on Haiku, hook returns
+immediately with the scorecard landing 60–90s later from the detached run.
+
+### Before release — one blocker
+
+**There is no negative control.** The grader's misattribution fix was verified
+against a single session, which moved from B to A. No session that *should* grade
+badly has been run through it, so nothing shows the grader can still distinguish.
+Bands now resolve upward on ambiguity and more practices correctly report "not
+applicable", which makes "everything gets an A" the plausible failure — and it
+would ship looking like it worked.
+
+Settle it by grading a session that genuinely went badly: one sprawling unscoped
+request, no checkpoints, no verification. It has to land C or D. If it lands A,
+the bands need a threshold rather than more prose.
+
+### After that
+
+- **Evals.** `plugin/evals/` already exists for `release-version`. Wanted: trigger
+  cases against the near-misses with `context-handover` and `session-handoff`, and
+  a grader-consistency case — one digest, three runs, do the bands agree.
+- **The `SessionStart` line.** Planned in Phase 3, never built. Without it a
+  scorecard exists only if someone goes looking for it.
+- **Release.** A new skill is a `minor`, so 1.10.0 through `/release-version`.
+
+### Known-unverified
+
+`/btw` is folded into BP-12 and `digest.py` counts sidechain user messages as
+`user_activity.side_questions`. No transcript on the development machine contains
+a `/btw`, and `isSidechain` was false on every event examined, so the counter may
+always read zero. Confirm against a transcript that actually has one before
+relying on it.
+
