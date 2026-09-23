@@ -61,13 +61,25 @@ BP-nn, BP-nn, BP-nn
 
 ## Not applicable
 BP-nn, BP-nn
+
+## Unobserved
+BP-nn, BP-nn
 ```
 
 - At most two focus items, chosen by what cost the session most. One is fine.
   None is fine. Never invent a second to fill the slot.
-- "Did well" is identifiers and names only — no commentary.
-- "Not applicable" covers practices the session gave no occasion to exercise.
-  Omit the section only if it would be empty.
+- "Did well" is identifiers and names only — no commentary. A practice goes there
+  on positive evidence that it was exercised. Its failure case not occurring is
+  not evidence.
+- "Not applicable" is for practices the session gave no occasion to exercise.
+  "Unobserved" is for practices the digest carries no signal for — the
+  Observability line in the catalogue says which of the two a practice can be. A
+  practice whose failure case actually occurred here is neither: it belongs in a
+  focus item, or nowhere.
+- Every practice from BP-01 to BP-19 appears exactly once, counting the ones named
+  in focus items. Naming what was not applicable is what lets the reader see the
+  grade did not rest on it, and a practice that simply vanishes tells them
+  nothing. Omit a section only when it would be empty.
 - Structural practices (BP-02, BP-14, BP-19) describe the project rather than the
   session, so they are never a focus item. If one is worth raising, add a single
   line under the focus items headed **Standing note**. They may appear in

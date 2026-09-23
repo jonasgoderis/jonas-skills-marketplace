@@ -65,49 +65,59 @@ behaviour, one focus item" rule working as intended; there were five genuine
 episodes and it picked a different second one each time. It is not instability in
 the grade.
 
-## What this does not settle
+## Three defects found, and what the fix did to them
 
-Three defects turned up while measuring. None of them moves the band — the costs
-are counted either way, just attributed differently — so none blocks release. All
-three are in the bookkeeping sections below the grade, which is where a reader
-looks to check the grade was fair.
+Three problems turned up while measuring, all in the bookkeeping sections below
+the grade — which is where a reader looks to check the grade was fair. None of
+them moves a band.
 
-### 1. BP-10 is reported "not applicable" on a session that violates it
+All three looked like they might share one root cause: the rubric defines four
+states — focus, done well, not applicable, and **unobserved** — while the output
+template in `grader-prompt.md` had three sections. "Unobserved" is created
+deliberately, for the nine practices a transcript cannot show, and then had
+nowhere to be printed. So it was tested as a hypothesis: add the fourth section
+and a rule that the four states partition BP-01 to BP-19, change nothing else,
+and rerun.
+
+### 1. Practices were silently omitted — fixed
+
+The rubric says to name what was not applicable "so the reader can see the grade
+did not rest on it". Before the fix, no run did: the sparsest accounted for six
+of nineteen.
+
+After the fix, a `bad` report accounts for all nineteen exactly once — two focus
+items, two done well, nine not applicable, six unobserved.
+
+### 2. BP-10 reported in the wrong bucket — improved, not fixed
 
 Message 6 is "it's definitely a caching problem, just fix the cache" and message
 7 is "ok it wasn't the cache" — the textbook BP-10 failure, and BP-10's
-observability is **Direct**. Three runs out of five listed BP-10 under *Not
-applicable*. One of those three simultaneously cited that exact episode as
-evidence under BP-06, so the report contradicts itself within four lines.
+observability is **Direct**. Before the fix, three runs out of five filed BP-10
+under *not applicable*, one of them while citing that exact episode as evidence
+under BP-06 four lines earlier.
 
-Only one run made BP-10 a focus item, which is the correct read.
+After the fix it moves to *unobserved*, which is a smaller lie — it no longer
+claims the session gave no occasion to exercise the practice — but it is still
+wrong, and the added rule says so explicitly: a practice whose failure case
+occurred belongs in a focus item or nowhere. The episode does get counted; it is
+folded into another focus item's narrative rather than dropped. So the grade is
+right and the attribution is not.
 
-### 2. Most practices are silently omitted
+Left alone deliberately. Fixing it means prose aimed at BP-10 in particular,
+which is the kind of patch that makes a rubric grow without making it better, and
+it changes no grade.
 
-The rubric says to say what is not applicable "so the reader can see the grade did
-not rest on it". No run does. The sparsest accounted for six of nineteen.
+### 3. "Did well" unstable, sometimes unearned — improved
 
-The cause looks structural rather than a matter of the grader ignoring the
-instruction. The rubric defines four states — focus, done well, not applicable,
-and **unobserved** — and the output template in `grader-prompt.md` has three
-sections. "Unobserved" is created deliberately, for the nine practices a
-transcript cannot show, and then has nowhere to be printed. Practices in that
-state disappear, and genuinely applicable ones get dropped into the same gap.
+Before the fix, across five runs of the same digest: `{BP-09, BP-12}`, `{BP-09}`,
+`{}`, `{BP-02, BP-19}`, `{}`. One run credited BP-12 on `side_questions: 0` — the
+case the rubric explicitly forbids, "do not list a practice as done well when the
+only evidence is that its failure case did not occur" — while another listed
+BP-12 as not applicable on identical evidence.
 
-If this is fixed, the template needs the fourth bucket, not more prose telling
-the grader to be thorough.
-
-### 3. "Did well" is unstable, and sometimes unearned
-
-Across five runs of the same digest: `{BP-09, BP-12}`, `{BP-09}`, `{}`,
-`{BP-02, BP-19}`, `{}`.
-
-Two specific problems inside that. One run credited BP-12 as done well on
-`side_questions: 0` — the case the rubric explicitly forbids, "do not list a
-practice as done well when the only evidence is that its failure case did not
-occur" — and another run listed BP-12 as *not applicable* on the same evidence.
-A different run's entire "did well" list was BP-02 and BP-19, both structural,
-both facts about the fixture project rather than about the session.
+After the fix BP-12 lands in *not applicable*, which is right. The list is still
+thin and still leans on structural facts about the fixture project, but nothing
+is now credited on absent evidence.
 
 ### One thing that is not a defect
 
@@ -116,12 +126,29 @@ looked wrong and is not: BP-16's entry carries an explicit exception for when th
 user's own words show it, "asking about a specific change, or questioning
 something in one", and message 10 is exactly that.
 
+## After the fix
+
+`grader-prompt.md` gained an `## Unobserved` section and three rules: "did well"
+needs positive evidence, "not applicable" and "unobserved" are distinguished by
+the practice's Observability line, and every practice appears exactly once.
+
+| Session | Runs | Grades |
+| --- | --- | --- |
+| `bad` | 4 | D, C, C, C |
+| `ordinary` | 3 | A+, A, A+ |
+
+`bad` drifted one notch down rather than up, which is the right direction: it was
+built with five costs and the rubric puts five or more at D. The bands still hold
+and `calibrate.sh` still exits zero.
+
 ## Where this leaves the release
 
-The blocking question is answered. Release is not gated on the three defects
-above; they degrade the report's bookkeeping, not its grade, and fixing any of
-them changes the grader's output and invalidates the numbers in this document.
-Rerun `calibrate.sh` after any such fix.
+The blocking question is answered and the one defect worth fixing is fixed. The
+BP-10 misfiling survives and is not gated on: it changes no grade, and the patch
+it wants is the kind that makes a rubric longer without making it better.
+
+Any further edit to `rubric.md`, `best-practices.md` or `grader-prompt.md`
+invalidates the numbers above. Rerun `calibrate.sh` before trusting them again.
 
 Still outstanding from before, and unchanged by this work: no `plugin/evals`
 trigger cases for the skill, the planned `SessionStart` line that would surface

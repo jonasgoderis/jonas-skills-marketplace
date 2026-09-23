@@ -31,15 +31,17 @@ only thing that separates them.
 non-zero otherwise. A `bad` session grading B or above means the bands have
 stopped discriminating, and the fix is a threshold rather than more prose.
 
-Measured 2026-09-23 on `haiku`, six gradings of `bad` and five of `ordinary`:
+Measured 2026-09-23 on `haiku`, after the `## Unobserved` section was added to
+the grader's output template:
 
-- `bad` — C six times out of six. BP-06 led the focus items in all five reports
-  that were kept.
-- `ordinary` — A+, A, A+, A, A+.
+- `bad` — D, C, C, C. BP-06 led the focus items every time.
+- `ordinary` — A+, A, A+.
 
-The band is stable; the sections below it are not. See
-`docs/plans/2026-09-23-evaluate-session-calibration.md` for what varied and what
-that implies.
+The band is stable. The second focus item is not, and does not need to be: the
+`bad` session contains five distinct costs and the rubric allows two, so a
+different pair is a different reading of the same evidence rather than a
+disagreement. See `docs/plans/2026-09-23-evaluate-session-calibration.md` for the
+one known misfiling that survives.
 
 ## The fixture
 
