@@ -248,11 +248,17 @@ answer, and a separate session for a separate subject (BP-04).
 a lot. Ask passing questions somewhere they will not accumulate. Keep it in the
 main conversation when the material itself is what you need to work with.
 
-**Observability:** Partial, and asymmetric. `user_activity.side_questions` is
-something the user did. `assistant_activity.subagents` is not — the assistant
-decides whether to delegate, so a session with none is not a user failing.
-Delegation the user explicitly asked for is visible in their messages; that is
-the only form of it worth crediting or missing.
+**Observability:** Indirect, and one-sided. The digest carries no signal for
+questions asked off the main thread: this version of Claude Code writes all
+sidechain traffic to a separate per-subagent file, so a session transcript cannot
+show them and a counter over it would read zero on every session — measured and
+absent, which is a stronger claim than the evidence supports.
+
+`assistant_activity.subagents` is not evidence about the user either: the
+assistant decides whether to delegate, so a session with none is not a user
+failing. Delegation the user explicitly asked for is visible in their messages,
+and that is the only form of this practice the digest can show. Where the
+messages do not show it, report the practice unobserved.
 
 ## BP-13 — Offload deterministic work to scripts
 

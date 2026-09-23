@@ -31,11 +31,10 @@ only thing that separates them.
 non-zero otherwise. A `bad` session grading B or above means the bands have
 stopped discriminating, and the fix is a threshold rather than more prose.
 
-Measured 2026-09-23 on `haiku`, after the `## Unobserved` section was added to
-the grader's output template:
+Measured 2026-09-23 on `haiku`, against the current digest and rubric:
 
-- `bad` — D, C, C, C. BP-06 led the focus items every time.
-- `ordinary` — A+, A, A+.
+- `bad` — C, C, C. BP-06 led the focus items every time.
+- `ordinary` — A+, A+, A+.
 
 The band is stable. The second focus item is not, and does not need to be: the
 `bad` session contains five distinct costs and the rubric allows two, so a

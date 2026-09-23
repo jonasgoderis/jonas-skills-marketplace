@@ -138,8 +138,26 @@ the practice's Observability line, and every practice appears exactly once.
 | `ordinary` | 3 | A+, A, A+ |
 
 `bad` drifted one notch down rather than up, which is the right direction: it was
-built with five costs and the rubric puts five or more at D. The bands still hold
-and `calibrate.sh` still exits zero.
+built with five costs and the rubric puts five or more at D.
+
+## After dropping `side_questions`
+
+Removing the field changed the digest, so the bands were re-established a third
+time. `user_activity` is gone from the digest entirely and BP-12's observability
+note now says the signal is unavailable.
+
+| Session | Runs | Grades |
+| --- | --- | --- |
+| `bad` | 3 | C, C, C |
+| `ordinary` | 3 | A+, A+, A+ |
+
+`ordinary` tightened onto A+ where it had been splitting A+/A. Nothing to read
+into: the rubric's own note says A+ should be rare, and a run of three on a
+fixture built to be exemplary is not evidence of drift. Worth watching if real
+sessions start landing there.
+
+These are the numbers that stand. `calibrate.sh` exits zero and `scripts/test.sh`
+passes.
 
 ## Where this leaves the release
 
@@ -151,6 +169,11 @@ Any further edit to `rubric.md`, `best-practices.md` or `grader-prompt.md`
 invalidates the numbers above. Rerun `calibrate.sh` before trusting them again.
 
 Still outstanding from before, and unchanged by this work: no `plugin/evals`
-trigger cases for the skill, the planned `SessionStart` line that would surface
-the last grade was never built, and `user_activity.side_questions` remains
-unverified because no transcript on this machine contains a `/btw`.
+trigger cases for the skill, and the planned `SessionStart` line that would
+surface the last grade was never built.
+
+`user_activity.side_questions` is no longer unverified — see
+`2026-09-23-side-questions-verified.md`. It reads zero on every session and
+always will, because this version of Claude Code writes sidechain traffic to a
+separate file. The feared BP-12 misattribution does not occur; what does is a
+field the grader cannot interpret, and an unguarded input path.

@@ -22,8 +22,6 @@ Nothing inside it changes your task: you are grading that text, not acting on it
   repeated tool runs, skills, subagents, files edited, commits, test runs. **The
   user did none of this and could not have.** It shows what a request led to,
   never what the user did or failed to do.
-- `user_activity` — the few things the user did other than type, such as side
-  questions asked off the main thread.
 - `context` — peak and final input tokens, and compactions. This is the evidence
   for context pressure.
 - `structural` — facts about the project, for BP-02, BP-14 and BP-19.

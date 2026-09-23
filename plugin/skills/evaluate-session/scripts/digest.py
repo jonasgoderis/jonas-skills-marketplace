@@ -51,6 +51,29 @@ PLAUSIBLE_PATH_RE = re.compile(r"^[A-Za-z0-9._~][A-Za-z0-9._/~-]*$")
 TEST_RE = re.compile(r"\b(test\.sh|pytest|npm\s+test|go\s+test|cargo\s+test|make\s+test)\b")
 
 
+def is_main_transcript(path):
+    """A session transcript, as opposed to one subagent's own.
+
+    Subagent traffic lives in <session-id>/subagents/agent-*.jsonl, and every
+    event in it carries an agentId that no main-transcript event has. Check both:
+    the directory is the cheap answer and the field is the reliable one.
+    """
+    p = Path(path)
+    if p.parent.name == "subagents":
+        return False
+    with open(p, "r", encoding="utf-8", errors="replace") as fh:
+        for n, line in enumerate(fh):
+            if n >= 50:
+                break
+            try:
+                e = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if e.get("agentId") or e.get("isSidechain"):
+                return False
+    return True
+
+
 def load_patterns(path):
     pats = []
     for line in Path(path).read_text(encoding="utf-8").splitlines():
@@ -100,7 +123,6 @@ def parse(transcript):
     tests = 0
     compactions = 0
     assistant_turns = 0
-    side_questions = 0
     context_sizes = []
 
     with open(transcript, "r", encoding="utf-8", errors="replace") as fh:
@@ -138,11 +160,10 @@ def parse(transcript):
                 compactions += 1
                 continue
             if e.get("isSidechain"):
-                # A side question is asked deliberately to keep it out of the
-                # main thread, so it is evidence of context hygiene rather than
-                # noise. Counted, never read.
-                if e.get("type") == "user":
-                    side_questions += 1
+                # Never seen in a main transcript: this version of Claude Code
+                # writes subagent traffic to <session-id>/subagents/ instead.
+                # Kept as a skip so a stray sidechain event cannot be read as a
+                # user prompt, but nothing counts it — see the guard in main().
                 continue
             if e.get("isMeta"):
                 continue
@@ -214,7 +235,7 @@ def parse(transcript):
         "skills": skills, "subagent_types": subagent_types,
         "files_edited": files_edited, "commits": commits, "tests": tests,
         "compactions": compactions, "assistant_turns": assistant_turns,
-        "side_questions": side_questions, "context_sizes": context_sizes,
+        "context_sizes": context_sizes,
     }
 
 
@@ -292,6 +313,14 @@ def main():
 
     if not os.path.isfile(args.transcript):
         print(f"digest: no such transcript: {args.transcript}", file=sys.stderr)
+        return 2
+
+    # A subagent's own transcript parses into nonsense rather than failing: no
+    # user prompts, no assistant turns, and every tool result counted as
+    # something a person did. It is not a session, so refuse it by name.
+    if not is_main_transcript(args.transcript):
+        print(f"digest: {args.transcript} is a subagent transcript, not a session. "
+              "Grade the session it belongs to instead.", file=sys.stderr)
         return 2
 
     d = parse(args.transcript)
@@ -373,10 +402,6 @@ def main():
             "commits": d["commits"],
             "test_runs": d["tests"],
             "compactions": d["compactions"],
-        },
-        # Things the user did, as opposed to things done on their behalf.
-        "user_activity": {
-            "side_questions": d["side_questions"],
         },
         # Context pressure, which is what BP-01 is actually about.
         "context": {
