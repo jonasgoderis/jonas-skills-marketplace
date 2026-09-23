@@ -23,6 +23,7 @@ schedules.
 │                 evaluate.sh          digest          -> scorecard            │
 │                 hook.sh              SessionEnd JSON -> evaluate.sh          │
 │                 enable-hook.sh       switches grading on and off             │
+│                 log.sh               one log line per session outcome        │
 │  plugin/hooks/hooks.json             registers the SessionEnd hook           │
 │                                                                              │
 │  changes: on every commit                                                    │
@@ -51,6 +52,10 @@ schedules.
 │  placed in ~/.claude/hooks, and nothing holds a path that an update can       │
 │  invalidate.                                                                 │
 │                                                                              │
+│  ${CLAUDE_PLUGIN_DATA}/evaluate-session.log   one line per ended session:    │
+│      graded, skipped and why, or failed. Written whether on or off; the       │
+│      tail is what enable-hook.sh --status shows.                              │
+│                                                                              │
 │  changes: when you switch it on or off                                       │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -68,7 +73,7 @@ nobody should start paying that by installing a collection of skills. The marker
 file is the opt-in, checked on the first line of `hook.sh`:
 
 ```
-  no marker  ->  exit 0                       a few milliseconds, nothing else
+  no marker  ->  log "skipped: off", exit 0   a few milliseconds, one log line
   marker     ->  parse payload, hand off
 ```
 
@@ -91,7 +96,7 @@ fail silently, to avoid one `[ -f ]` test.
   ${CLAUDE_PLUGIN_ROOT}/skills/evaluate-session/scripts/hook.sh
         │   expanded by Claude Code to the current plugin version
         │
-        │   marker file absent?  ──►  exit 0        automatic grading is off
+        │   marker file absent?  ──►  log, exit 0   automatic grading is off
         │   reads the payload, returns 0 immediately
         │   ──────────────────────────────►  your exit is never delayed
         │
@@ -136,7 +141,7 @@ to no codebase, and a public repo should never carry one.
 ```
 enable-hook.sh --on       write the marker; every session that ends is graded
                --off      remove it; /evaluate-session still works
-               --status   report whether it is on
+               --status   report whether it is on, and tail the hook log
                --test     grade this project's most recent session now, through
                           the same entry point the hook uses, whether or not
                           automatic grading is on

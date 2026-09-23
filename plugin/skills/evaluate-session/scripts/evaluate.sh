@@ -15,6 +15,8 @@ fi
 export CLAUDE_EVALUATE_SESSION=1
 
 SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=log.sh
+. "$SKILL_DIR/scripts/log.sh"
 OUT_DIR="${HOME}/.claude/scorecards"
 MODEL="haiku"
 TRANSCRIPT=""
@@ -22,6 +24,7 @@ PROJECT_DIR="$PWD"
 MIN_TURNS=5
 DRY_RUN=0
 REASON=""
+LOG=""
 
 usage() {
   cat <<'USAGE'
@@ -33,6 +36,7 @@ evaluate.sh --transcript <path> [options]
   --out DIR           where scorecards land (default: ~/.claude/scorecards)
   --min-turns N       skip sessions shorter than this (default: 5)
   --reason R          SessionEnd reason, recorded in the index
+  --log FILE          append one line saying how this run ended
   --dry-run           print the digest and the prompt, call nothing, spend nothing
 USAGE
 }
@@ -45,6 +49,7 @@ while [ $# -gt 0 ]; do
     --out)         OUT_DIR="${2:-}"; shift 2 ;;
     --min-turns)   MIN_TURNS="${2:-}"; shift 2 ;;
     --reason)      REASON="${2:-}"; shift 2 ;;
+    --log)         LOG="${2:-}"; shift 2 ;;
     --dry-run)     DRY_RUN=1; shift ;;
     -h|--help)     usage; exit 0 ;;
     *) echo "evaluate: unknown argument: $1" >&2; usage >&2; exit 2 ;;
@@ -52,12 +57,21 @@ while [ $# -gt 0 ]; do
 done
 
 [ -n "$TRANSCRIPT" ] || { echo "evaluate: --transcript is required" >&2; exit 2; }
-[ -f "$TRANSCRIPT" ] || { echo "evaluate: no such transcript: $TRANSCRIPT" >&2; exit 2; }
 
-command -v claude >/dev/null 2>&1 || { echo "evaluate: claude is not on PATH" >&2; exit 2; }
-command -v python3 >/dev/null 2>&1 || { echo "evaluate: python3 is not on PATH" >&2; exit 2; }
+SESSION="$(basename "$TRANSCRIPT" .jsonl)"
+note() { eval_log "$LOG" "$SESSION" "${REASON:-manual}" "$1"; }
 
-TMP="$(mktemp -d "${TMPDIR:-/tmp}/evaluate-session.XXXXXX")" || exit 2
+[ -f "$TRANSCRIPT" ] || { echo "evaluate: no such transcript: $TRANSCRIPT" >&2
+                          note "failed: no such transcript"; exit 2; }
+
+# A hook's PATH is not the user's shell PATH, so these are the likeliest reasons
+# a run that worked from the command line does nothing from the hook.
+command -v claude >/dev/null 2>&1 || { echo "evaluate: claude is not on PATH" >&2
+                                       note "failed: claude is not on PATH ($PATH)"; exit 2; }
+command -v python3 >/dev/null 2>&1 || { echo "evaluate: python3 is not on PATH" >&2
+                                        note "failed: python3 is not on PATH ($PATH)"; exit 2; }
+
+TMP="$(mktemp -d "${TMPDIR:-/tmp}/evaluate-session.XXXXXX")" || { note "failed: mktemp"; exit 2; }
 trap 'rm -rf "$TMP"' EXIT
 
 # Digest first. A short session, or one whose messages match a secret pattern,
@@ -69,13 +83,17 @@ python3 "$SKILL_DIR/scripts/digest.py" \
   --min-turns "$MIN_TURNS" \
   > "$DIGEST" 2> "$TMP/digest.err"
 rc=$?
+digest_msg="$(head -n1 "$TMP/digest.err" | sed 's/^digest: //')"
 if [ "$rc" -eq 3 ]; then
-  exit 0                                   # too short to say anything useful
+  note "skipped: $digest_msg"              # too short to say anything useful
+  exit 0
 elif [ "$rc" -eq 4 ]; then
   cat "$TMP/digest.err" >&2                # secret matched; nothing was written
+  note "skipped: a secret pattern matched, nothing was sent"
   exit 4
 elif [ "$rc" -ne 0 ]; then
   cat "$TMP/digest.err" >&2
+  note "failed: digest exited $rc: $digest_msg"
   exit "$rc"
 fi
 
@@ -106,16 +124,18 @@ if ! claude -p --model "$MODEL" --restricted --permission-mode dontAsk \
      < "$PROMPT" > "$REPORT" 2> "$TMP/claude.err"; then
   echo "evaluate: the grading call failed" >&2
   head -5 "$TMP/claude.err" >&2
+  note "failed: grading call: $(head -n1 "$TMP/claude.err")"
   exit 1
 fi
-[ -s "$REPORT" ] || { echo "evaluate: the grading call returned nothing" >&2; exit 1; }
+[ -s "$REPORT" ] || { echo "evaluate: the grading call returned nothing" >&2
+                      note "failed: the grading call returned nothing"; exit 1; }
 
 # Strip an enclosing code fence if the model added one anyway.
 if [ "$(head -n1 "$REPORT")" = '```' ] || [ "$(head -n1 "$REPORT")" = '```markdown' ]; then
   sed '1d; ${/^```$/d;}' "$REPORT" > "$REPORT.clean" && mv "$REPORT.clean" "$REPORT"
 fi
 
-mkdir -p "$OUT_DIR" || exit 2
+mkdir -p "$OUT_DIR" || { note "failed: cannot create $OUT_DIR"; exit 2; }
 PROJECT="$(basename "$PROJECT_DIR" | tr ' ' '-')"
 STAMP="$(date +%Y-%m-%d-%H%M)"
 DEST="$OUT_DIR/${STAMP}-${PROJECT}.md"
@@ -131,4 +151,5 @@ printf '| %s | %s | %s | %s | [%s](%s) |\n' \
   "$(date +%Y-%m-%d)" "$PROJECT" "${GRADE:-?}" "${FOCUS:-—}" "$(basename "$DEST")" "$(basename "$DEST")" \
   >> "$INDEX"
 
+note "graded: ${GRADE:-?} -> $DEST"
 echo "$DEST"

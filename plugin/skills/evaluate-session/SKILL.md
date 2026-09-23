@@ -39,6 +39,7 @@ scripts/digest.py       transcript .jsonl  ->  compact evidence digest (JSON)
 scripts/evaluate.sh     digest -> graded scorecard on disk, plus an index line
 scripts/hook.sh         SessionEnd payload -> evaluate.sh, detached
 scripts/enable-hook.sh  switches automatic grading on and off
+scripts/log.sh          one log line per session outcome, sourced by the above
 ```
 
 `digest.py` is the privacy boundary as much as the cost control. It carries the
@@ -65,8 +66,9 @@ For the session in progress, the newest file in that directory is the current on
 Run `--dry-run` first when changing the rubric or the prompt. It builds the
 digest and the full prompt, prints both with a token estimate, and calls nothing.
 
-Sessions shorter than five prompts exit silently. A grade on a three-turn session
-is noise, and producing one teaches the user to ignore the rest.
+Sessions shorter than five prompts are skipped. A grade on a three-turn session
+is noise, and producing one teaches the user to ignore the rest. The skip is
+logged, not reported: see below.
 
 ## Running it automatically
 
@@ -76,14 +78,22 @@ as soon as the plugin is enabled. It does nothing until switched on.
 ```
 enable-hook.sh --on       grade every session from now on
                --off      stop; /evaluate-session still works
-               --status   is it on?
+               --status   is it on, and what happened to the last sessions?
                --test     grade this project's latest session now, through the
                           same entry point the hook uses
 ```
 
 `--on` writes a marker file under the plugin's own data directory. `hook.sh`
 looks for it and exits immediately when it is absent, so an installer who never
-wanted this pays a few milliseconds per exit and nothing else. Nothing is ever
+wanted this pays a few milliseconds and one log line per exit, and nothing else.
+
+Every session that ends leaves one line in `evaluate-session.log` in the plugin's
+data directory: graded, skipped and why (off, too short, secret matched, no
+transcript), or failed and where. The hook runs detached with its output
+discarded, so without the log a skip looks exactly like a hook that never fired.
+When the user says the hook did not run, run `enable-hook.sh --status` first. It
+prints the last five lines. A `started` line with nothing after it means the
+grading run was killed before it finished. Nothing is ever
 written to `settings.json`, so there is no path anywhere that a plugin update can
 leave pointing at a directory that no longer exists.
 
