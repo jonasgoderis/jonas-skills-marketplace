@@ -11,6 +11,24 @@ Before creating a skill, or making any non-trivial change to one, load the
 file only records the parts that apply to every change so they are not
 rediscovered each session.
 
+The guidance lives in two places on disk, and going to it directly beats
+reasoning from memory about what Anthropic recommends:
+
+- **`anthropic-skills:skill-creator`** owns the authoring loop — draft, test
+  prompts, evals, description optimisation. Two of its scripts settle questions
+  that otherwise get argued: `scripts/quick_validate.py` is the only thing
+  anywhere that enforces a naming rule, and `scripts/run_loop.py` optimises a
+  description against measured trigger rates rather than taste.
+- **The official plugin marketplace**, under
+  `~/.claude/plugins/marketplaces/claude-plugins-official/plugins/`. Its
+  `plugin-dev` plugin carries `skill-development`, `hook-development`,
+  `command-development`, `agent-development`, `plugin-structure`,
+  `plugin-settings` and `mcp-integration`. Read the matching one when a change
+  touches plugin machinery rather than a skill's prose — shipping a hook is a
+  different job from writing a `SKILL.md`, and this file says nothing about it.
+
+The parts of that guidance which bear on every change here:
+
 - **The description is the trigger.** All "when to use this" information belongs
   in the frontmatter `description`, not the body. Claude tends to *under*-trigger
   skills, so descriptions lean pushy: name the contexts, the alternative
@@ -31,6 +49,25 @@ rediscovered each session.
   something genuinely is personal configuration, isolate it in `references/` so
   the skill still degrades gracefully for everyone else.
 - **Imperative instructions.** "Read the commits", not "you should read".
+
+### Settled, so stop re-deriving it
+
+- **There is no verb or gerund convention for skill names.** `skill-creator`
+  defines `name` as an identifier and says nothing further; `quick_validate.py`
+  enforces only kebab-case — lowercase letters, digits and hyphens, none leading,
+  trailing or doubled. Across Anthropic's own official skills, nouns outnumber
+  verbs about four to one. Pick what reads well and move on. **Imperative
+  instructions**, above, governs the instruction prose, not the `name` field —
+  they are easy to conflate.
+- **A description is tested, not argued.** It is the trigger, so a disagreement
+  about whether a skill will fire — or whether it will steal a sibling skill's
+  prompts — is settled by trigger cases in `plugin/evals/`, where the negatives
+  that matter are the near-misses against those siblings. `run_loop.py` is there
+  for a one-off tuning pass when a description needs more than a guess.
+- **Look for prior art before building.** The official marketplace ships adjacent
+  skills, and one may already have solved the hard half. `session-report`, for
+  instance, parses `~/.claude/projects` transcripts and bundles the analyser for
+  it. Reuse the approach rather than reinventing the parse.
 
 ## Repo conventions
 

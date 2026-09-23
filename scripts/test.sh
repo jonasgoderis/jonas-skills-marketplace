@@ -59,6 +59,48 @@ for dir in plugin/skills/*/; do
 done
 [ "$found" -gt 0 ] && pass "$found skill(s) found" || fail "no skills found under plugin/skills/"
 
+echo "Hooks"
+# A plugin's hooks.json is how it registers a hook, and a broken one fails
+# silently: the hook simply never runs. Nothing else here would notice.
+if [ -f plugin/hooks/hooks.json ]; then
+  if jq -e . plugin/hooks/hooks.json >/dev/null 2>&1; then
+    pass "plugin/hooks/hooks.json parses"
+
+    events="$(jq -r '.hooks | keys[]' plugin/hooks/hooks.json 2>/dev/null)"
+    if [ -n "$events" ]; then
+      pass "declares $(printf '%s\n' "$events" | tr '\n' ' ' | sed 's/ $//')"
+    else
+      fail "plugin/hooks/hooks.json declares no hook events"
+    fi
+
+    # Every command must resolve to a file that exists and can be executed.
+    # ${CLAUDE_PLUGIN_ROOT} is the plugin directory at run time.
+    while IFS= read -r cmd; do
+      [ -n "$cmd" ] || continue
+      # Pull the ${CLAUDE_PLUGIN_ROOT}-relative path out of the command, whatever
+      # interpreter or quoting surrounds it.
+      target="$(printf '%s' "$cmd" | grep -oE '\$\{CLAUDE_PLUGIN_ROOT\}[^"'"'"' ]*' | head -1)"
+      if [ -z "$target" ]; then
+        fail "hooks.json command does not reference \${CLAUDE_PLUGIN_ROOT}: $cmd"
+        continue
+      fi
+      target="${target/\$\{CLAUDE_PLUGIN_ROOT\}/plugin}"
+      if [ ! -e "$target" ]; then
+        fail "hooks.json points at a missing file: $target"
+      elif [ ! -x "$target" ]; then
+        fail "hooks.json points at a non-executable file: $target"
+      else
+        pass "hooks.json -> $target"
+      fi
+    done < <(jq -r '.hooks | to_entries[] | .value[] | .hooks[]? | .command // empty' \
+               plugin/hooks/hooks.json 2>/dev/null)
+  else
+    fail "plugin/hooks/hooks.json is not valid JSON"
+  fi
+else
+  pass "no plugin hooks to check"
+fi
+
 echo "Scripts"
 scripts=0
 while IFS= read -r f; do

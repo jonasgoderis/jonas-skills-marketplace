@@ -1,4 +1,4 @@
-# Plan: session scorecard
+# Plan: evaluate-session
 
 Proposed 2026-09-22, from `todo/evaluate-best-practices.md`. Not yet started.
 
@@ -47,18 +47,27 @@ variable instead (below).
 ## Shape
 
 ```
-plugin/skills/session-scorecard/
+plugin/skills/evaluate-session/
 ├── SKILL.md                        the on-demand half, and the install story
 ├── references/
 │   ├── best-practices.md           the numbered catalogue — BP-01 … BP-19
-│   └── rubric.md                   how a grade is assigned, for the grader prompt
+│   ├── rubric.md                   how a grade is assigned, for the grader prompt
+│   └── architecture.md             added in build: how the pieces relate
 ├── scripts/
-│   ├── digest.sh                   transcript JSONL → compact evidence digest
+│   ├── digest.py                   transcript JSONL → compact evidence digest
 │   ├── evaluate.sh                 digest → graded report on disk
-│   └── install-hook.sh             writes/removes the SessionEnd hook in settings
+│   ├── hook.sh                     SessionEnd payload → evaluate.sh, detached
+│   └── enable-hook.sh              switches automatic grading on and off
 └── assets/
-    └── grader-prompt.md            the fixed prompt the headless call is given
+    ├── grader-prompt.md            the fixed prompt the headless call is given
+    └── secret-patterns.txt         the privacy gate's built-in patterns
 ```
+
+Two departures from this, both decided while building. The digest is `digest.py`
+rather than `digest.sh` — uuid dedupe, nested message content and five exclusion
+rules are write-only code in bash and jq. And `install-hook.sh` became
+`enable-hook.sh` when the hook stopped being installed at all; see the superseded
+section below.
 
 Nothing here is invented for this repo's convenience: the catalogue in
 `references/` is the progressive-disclosure rule from `CLAUDE.md` (the rubric is
@@ -68,46 +77,62 @@ every run.
 
 ### Name and triggering
 
-Checked against the authority `CLAUDE.md` names — `anthropic-skills:skill-creator`
-— rather than argued from taste.
+Settled: **`evaluate-session`**. The output it produces is still called a
+scorecard — that is the artifact, not the skill.
 
-**There is no naming convention.** skill-creator defines the field as
-"**name**: Skill identifier" and says nothing further about it. The only binding
-rule anywhere is this repo's own: the frontmatter `name` equals the directory
-name. So `session-scorecard` and `practice-review` are an equally valid free
-choice, and the earlier reasoning about one name colliding with `session-handoff`
-was applying description logic to the wrong field.
+The reasoning that was offered for it does not survive checking, so it is
+recorded here to stop it being re-derived. **There is no verb or gerund
+convention for skill names.** Checked in three places:
 
-`session-scorecard` stands, on the weak grounds that it is what you would type.
+- `skill-creator`, which `CLAUDE.md` names as the authority, defines the field as
+  "**name**: Skill identifier" and says nothing else about it.
+- The only rule enforced anywhere is in `skill-creator/scripts/quick_validate.py`:
+  kebab-case, lowercase letters, digits and hyphens, no leading or trailing
+  hyphen, no consecutive hyphens. That is the whole of it.
+- Empirically, across the 25 skills in Anthropic's official plugin marketplace,
+  nouns outnumber verbs roughly four to one — `skill-development`,
+  `hook-development`, `plugin-structure`, `frontend-design`, `session-report`,
+  `claude-security`. The verb-first ones are a minority (`build-mcp-server`,
+  `build-mcpb`, `m5-onboard`) and there is a single gerund (`writing-rules`).
 
-**The description is where all the guidance lives**, and it points the opposite
-way from what this plan previously said. skill-creator is emphatic that Claude
-*under*-triggers and that descriptions should therefore lean pushy — "include
-cases where the user doesn't explicitly name the skill", "even if they don't
-explicitly ask". An earlier draft of this section proposed deliberately narrowing
-the scorecard's description to avoid competing with `context-handover` and
-`session-handoff`. That is a real tension: pushiness risks grabbing "I'm done for
-the day", narrowness risks never firing at all.
+The likely source of the belief is real, and worth keeping straight: this repo's
+`CLAUDE.md` does say **"Imperative instructions. 'Read the commits', not 'you
+should read'."** That rule is about the instruction prose inside `SKILL.md`. It
+does not reach the `name` field.
 
-**The resolution is measurement, not judgement.** skill-creator provides for
-exactly this case. Its trigger eval set asks for should-trigger queries covering
-"cases where this skill competes with another but should win", and should-not-
-trigger queries that are deliberate near-misses — "the negative cases should be
-genuinely tricky". That is precisely the sibling-collision question, decided by
-observed trigger rate rather than by anyone's intuition.
+So `evaluate-session` is valid — kebab-case, verb-first like a handful of
+Anthropic's own — just not *required*. One reservation, noted and overruled: it
+names the session as the object being evaluated, when the thing actually graded
+is how the user drove it. `evaluate-practices` would have been more precise.
+Since the name does not drive triggering, this is a readability point only.
 
-So: write the description pushy on performance contexts ("how did I do", "grade
-this session", "which practices am I weakest on", and the case where the user
-wants the feedback without asking for it by name), then test it. Do not
-pre-narrow it on the strength of an argument.
+**The description is what triggers, and it gets tested rather than argued.**
+skill-creator is emphatic that Claude under-triggers, so the description leans
+pushy on performance contexts — "how did I do", "grade this session", "which
+practices am I weakest on", and the case where the user wants the feedback
+without naming it. It is not pre-narrowed to avoid competing with
+`context-handover` and `session-handoff`; that competition is settled by the
+trigger evals in Phase 4, whose negative cases are exactly those near-misses.
 
-One thing genuinely is settled without testing: **the hook path is not skill
-triggering.** A `SessionEnd` hook runs a shell command and never matches a
-description against a prompt, so nothing the sibling skills say can suppress the
-automatic scorecard. Only the on-demand `/session-scorecard` path is at stake in
-any of the above.
+Not at stake in any of the above: **the hook path is not skill triggering.** A
+`SessionEnd` hook runs a shell command and never matches a description against a
+prompt, so nothing the sibling skills say can suppress the automatic evaluation.
 
----
+### Prior art — Anthropic's `session-report`
+
+Found while checking the naming question. Anthropic ships an official
+`session-report` skill that reads the same `~/.claude/projects` transcripts, and
+bundles `analyze-sessions.mjs` to parse them.
+
+It is **not** a duplicate: it reports *usage* — tokens, cache hit rate, subagent
+spend, expensive prompts — where this skill judges *practice*. Adjacent, not
+overlapping.
+
+But its analyser already solves the transcript-parsing half of `digest.sh`,
+including multi-session aggregation. Read it before writing `digest.sh` in
+Phase 2 rather than reinventing the parse. Its `--json --since 7d` output shape
+is also a candidate signal source: cache breaks and prompt cost are evidence for
+BP-01 and BP-05 that a transcript read alone would not surface.
 
 ## The catalogue — `references/best-practices.md`
 
@@ -208,7 +233,7 @@ messages from the oldest end, and the digest records that it truncated.
 evaluate.sh --transcript <path> [--reason <r>] [--model haiku] [--out <dir>] [--dry-run]
 ```
 
-1. Guard: if `CLAUDE_SCORECARD_RUNNING` is set, exit 0 immediately. The grading
+1. Guard: if `CLAUDE_EVALUATE_SESSION` is set, exit 0 immediately. The grading
    call is itself a Claude session, which ends, which fires SessionEnd. Without
    this, the first exit forks indefinitely. This is the single most important
    line in the plan and it is four characters of shell.
@@ -265,23 +290,29 @@ anywhere is unconfirmed. The design does not depend on it:
 
 ---
 
-## `install-hook.sh` — opt-in, and reversible
+## ~~`install-hook.sh` — opt-in, and reversible~~ — SUPERSEDED 2026-09-22
 
-```
-install-hook.sh --install [--scope user|project] [--model haiku]
-install-hook.sh --status
-install-hook.sh --uninstall
-```
+This section described writing the hook into the user's `settings.json`. It was
+built, shipped in three successive commits, and then removed entirely. Kept here
+because the reasoning for dropping it is worth not rediscovering.
 
-Edits `settings.json` with `jq`, merging into an existing `hooks` block rather
-than replacing it — your `PreToolUse` guards must survive this untouched, and a
-model hand-editing that file is exactly the class of thing BP-13 says to script.
-It prints the diff and asks before writing. `--uninstall` removes only the entry
-it added.
+The approach needed a launcher script at a stable path (because the installed
+plugin lives under a version-numbered directory that every update replaces), a
+per-machine file naming a working checkout, and careful handling of a
+`settings.json` that is usually a symlink into a dotfiles repo. Three moving
+parts, each able to fail silently — a `SessionEnd` hook whose command does not
+exist produces no error at all.
 
-The SKILL.md tells the user this step exists and what it will cost them per
-session. A skill that quietly installs a billable hook is the thing we are
-avoiding.
+What replaced it is what the documentation prescribes and what Anthropic's own
+plugins do: the plugin ships `hooks/hooks.json`, where `${CLAUDE_PLUGIN_ROOT}`
+expands to whichever version is current. The path problem then does not arise.
+
+The one thing `hooks.json` cannot express is opt-in — a plugin's hooks are live
+the moment it is enabled. So `hook.sh` checks for a marker file on its first line
+and exits when it is absent, and `enable-hook.sh --on` / `--off` writes and
+removes it. An installer who never wanted this pays a few milliseconds per exit.
+
+Current design is in `plugin/skills/evaluate-session/references/architecture.md`.
 
 ---
 
@@ -289,22 +320,26 @@ avoiding.
 
 Each stops cleanly, and the first is useful even if nothing follows it.
 
-**Phase 1 — the catalogue.** `references/best-practices.md`, all nineteen
+**Phase 1 — the catalogue — DONE 2026-09-22.** `references/best-practices.md`, all nineteen
 entries written out properly, plus `references/rubric.md`. No scripts, no hook.
 This is most of the todo's actual value and the only part that is useless if done
 carelessly. Reviewed by you before anything is built on it.
 
-**Phase 2 — `digest.sh` and on-demand grading.** The digest script, the grader
+**Phase 2 — the digest and on-demand grading — DONE 2026-09-22.** The digest script, the grader
 prompt, `evaluate.sh`, and a `SKILL.md` that supports `/session-scorecard` on the
 current session. Calibrate on three of your existing transcripts in this project
 — they are real sessions with real variation, and one of them will already be a
 long ugly one. Confirm cost per run before going further.
 
-**Phase 3 — the hook.** `install-hook.sh`, the SessionEnd entry, the recursion
-guard, the detached run, the SessionStart line, the index. Verify the actual
-reason set empirically rather than trusting the binary strings.
+**Phase 3 — the hook — MOSTLY DONE 2026-09-22.** Built, then rebuilt on
+`hooks/hooks.json` as above. The recursion guard, the detached run and the index
+are in. The reason set was verified rather than assumed, in the binary and then
+against the documentation: `clear`, `resume`, `logout`, `prompt_input_exit`,
+`other`. **Still outstanding: the SessionStart line** that surfaces the last
+grade at the top of the next session — without it a scorecard exists only if you
+go looking for it, which undercuts the point.
 
-**Phase 4 — evals.** No longer optional, because the description tension above
+**Phase 4 — evals — NOT STARTED.** No longer optional, because the description tension above
 has to be settled empirically rather than asserted. Two separate things:
 
 - *Trigger cases*, in this repo's existing `plugin/evals/` harness from the
@@ -350,7 +385,7 @@ is stable and vague than one that is precise and random.
 `versioning-skill`, and committed during the writing of this plan. Sharing one
 working tree means its `git checkout` changes files under this session's feet.
 Recommendation: this work runs in a separate git worktree off `main`, on a branch
-like `session-scorecard`. It touches `plugin/skills/session-scorecard/`, the
+like `session-scorecard`. It touches `plugin/skills/evaluate-session/`, the
 README skill list and the marketplace description — no overlap with the eval work
 except the README, which is a one-line conflict at worst.
 
@@ -365,3 +400,45 @@ Grading anything other than a Claude Code session. Cross-project or
 cross-timeframe analytics beyond the index line. Sending a scorecard anywhere off
 the machine. Any automatic change to how Claude behaves based on a grade — the
 scorecard tells you something, it does not tune anything.
+
+---
+
+## Status — 2026-09-23
+
+Built and working end to end on branch `evaluate-session`, based on `main` at
+1.9.1. `scripts/test.sh` passes. Not released; automatic grading ships off.
+
+Measured rather than estimated: digest reduction 127x–659x across seven real
+transcripts, ~6,000 input tokens per grading call on Haiku, hook returns
+immediately with the scorecard landing 60–90s later from the detached run.
+
+### Before release — one blocker
+
+**There is no negative control.** The grader's misattribution fix was verified
+against a single session, which moved from B to A. No session that *should* grade
+badly has been run through it, so nothing shows the grader can still distinguish.
+Bands now resolve upward on ambiguity and more practices correctly report "not
+applicable", which makes "everything gets an A" the plausible failure — and it
+would ship looking like it worked.
+
+Settle it by grading a session that genuinely went badly: one sprawling unscoped
+request, no checkpoints, no verification. It has to land C or D. If it lands A,
+the bands need a threshold rather than more prose.
+
+### After that
+
+- **Evals.** `plugin/evals/` already exists for `release-version`. Wanted: trigger
+  cases against the near-misses with `context-handover` and `session-handoff`, and
+  a grader-consistency case — one digest, three runs, do the bands agree.
+- **The `SessionStart` line.** Planned in Phase 3, never built. Without it a
+  scorecard exists only if someone goes looking for it.
+- **Release.** A new skill is a `minor`, so 1.10.0 through `/release-version`.
+
+### Known-unverified
+
+`/btw` is folded into BP-12 and `digest.py` counts sidechain user messages as
+`user_activity.side_questions`. No transcript on the development machine contains
+a `/btw`, and `isSidechain` was false on every event examined, so the counter may
+always read zero. Confirm against a transcript that actually has one before
+relying on it.
+
