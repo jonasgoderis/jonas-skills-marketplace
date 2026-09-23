@@ -51,14 +51,23 @@ plugin/skills/evaluate-session/
 ├── SKILL.md                        the on-demand half, and the install story
 ├── references/
 │   ├── best-practices.md           the numbered catalogue — BP-01 … BP-19
-│   └── rubric.md                   how a grade is assigned, for the grader prompt
+│   ├── rubric.md                   how a grade is assigned, for the grader prompt
+│   └── architecture.md             added in build: how the pieces relate
 ├── scripts/
-│   ├── digest.sh                   transcript JSONL → compact evidence digest
+│   ├── digest.py                   transcript JSONL → compact evidence digest
 │   ├── evaluate.sh                 digest → graded report on disk
-│   └── install-hook.sh             writes/removes the SessionEnd hook in settings
+│   ├── hook.sh                     SessionEnd payload → evaluate.sh, detached
+│   └── enable-hook.sh              switches automatic grading on and off
 └── assets/
-    └── grader-prompt.md            the fixed prompt the headless call is given
+    ├── grader-prompt.md            the fixed prompt the headless call is given
+    └── secret-patterns.txt         the privacy gate's built-in patterns
 ```
+
+Two departures from this, both decided while building. The digest is `digest.py`
+rather than `digest.sh` — uuid dedupe, nested message content and five exclusion
+rules are write-only code in bash and jq. And `install-hook.sh` became
+`enable-hook.sh` when the hook stopped being installed at all; see the superseded
+section below.
 
 Nothing here is invented for this repo's convenience: the catalogue in
 `references/` is the progressive-disclosure rule from `CLAUDE.md` (the rubric is
@@ -281,23 +290,29 @@ anywhere is unconfirmed. The design does not depend on it:
 
 ---
 
-## `install-hook.sh` — opt-in, and reversible
+## ~~`install-hook.sh` — opt-in, and reversible~~ — SUPERSEDED 2026-09-22
 
-```
-install-hook.sh --install [--scope user|project] [--model haiku]
-install-hook.sh --status
-install-hook.sh --uninstall
-```
+This section described writing the hook into the user's `settings.json`. It was
+built, shipped in three successive commits, and then removed entirely. Kept here
+because the reasoning for dropping it is worth not rediscovering.
 
-Edits `settings.json` with `jq`, merging into an existing `hooks` block rather
-than replacing it — your `PreToolUse` guards must survive this untouched, and a
-model hand-editing that file is exactly the class of thing BP-13 says to script.
-It prints the diff and asks before writing. `--uninstall` removes only the entry
-it added.
+The approach needed a launcher script at a stable path (because the installed
+plugin lives under a version-numbered directory that every update replaces), a
+per-machine file naming a working checkout, and careful handling of a
+`settings.json` that is usually a symlink into a dotfiles repo. Three moving
+parts, each able to fail silently — a `SessionEnd` hook whose command does not
+exist produces no error at all.
 
-The SKILL.md tells the user this step exists and what it will cost them per
-session. A skill that quietly installs a billable hook is the thing we are
-avoiding.
+What replaced it is what the documentation prescribes and what Anthropic's own
+plugins do: the plugin ships `hooks/hooks.json`, where `${CLAUDE_PLUGIN_ROOT}`
+expands to whichever version is current. The path problem then does not arise.
+
+The one thing `hooks.json` cannot express is opt-in — a plugin's hooks are live
+the moment it is enabled. So `hook.sh` checks for a marker file on its first line
+and exits when it is absent, and `enable-hook.sh --on` / `--off` writes and
+removes it. An installer who never wanted this pays a few milliseconds per exit.
+
+Current design is in `plugin/skills/evaluate-session/references/architecture.md`.
 
 ---
 
@@ -305,22 +320,26 @@ avoiding.
 
 Each stops cleanly, and the first is useful even if nothing follows it.
 
-**Phase 1 — the catalogue.** `references/best-practices.md`, all nineteen
+**Phase 1 — the catalogue — DONE 2026-09-22.** `references/best-practices.md`, all nineteen
 entries written out properly, plus `references/rubric.md`. No scripts, no hook.
 This is most of the todo's actual value and the only part that is useless if done
 carelessly. Reviewed by you before anything is built on it.
 
-**Phase 2 — `digest.sh` and on-demand grading.** The digest script, the grader
+**Phase 2 — the digest and on-demand grading — DONE 2026-09-22.** The digest script, the grader
 prompt, `evaluate.sh`, and a `SKILL.md` that supports `/session-scorecard` on the
 current session. Calibrate on three of your existing transcripts in this project
 — they are real sessions with real variation, and one of them will already be a
 long ugly one. Confirm cost per run before going further.
 
-**Phase 3 — the hook.** `install-hook.sh`, the SessionEnd entry, the recursion
-guard, the detached run, the SessionStart line, the index. Verify the actual
-reason set empirically rather than trusting the binary strings.
+**Phase 3 — the hook — MOSTLY DONE 2026-09-22.** Built, then rebuilt on
+`hooks/hooks.json` as above. The recursion guard, the detached run and the index
+are in. The reason set was verified rather than assumed, in the binary and then
+against the documentation: `clear`, `resume`, `logout`, `prompt_input_exit`,
+`other`. **Still outstanding: the SessionStart line** that surfaces the last
+grade at the top of the next session — without it a scorecard exists only if you
+go looking for it, which undercuts the point.
 
-**Phase 4 — evals.** No longer optional, because the description tension above
+**Phase 4 — evals — NOT STARTED.** No longer optional, because the description tension above
 has to be settled empirically rather than asserted. Two separate things:
 
 - *Trigger cases*, in this repo's existing `plugin/evals/` harness from the
