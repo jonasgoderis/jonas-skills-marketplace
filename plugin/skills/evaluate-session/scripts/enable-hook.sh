@@ -8,6 +8,8 @@
 set -uo pipefail
 
 SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=log.sh
+. "$SKILL_DIR/scripts/log.sh"
 # Written to the plugin's data directory when it is known, and always to the
 # fixed path as well, so the hook finds it whichever way it is invoked. Both
 # survive plugin updates.
@@ -22,7 +24,8 @@ enable-hook.sh --on | --off | --status | --test
 
   --on       grade every session from now on
   --off      stop grading automatically; /evaluate-session still works
-  --status   report whether automatic grading is on
+  --status   report whether automatic grading is on, and what the hook did
+             with the last few sessions
   --test     grade this project's most recent session now, through the same
              entry point the hook uses
 USAGE
@@ -47,15 +50,39 @@ latest_transcript() {
     | sort -rn | head -1 | cut -d' ' -f2-
 }
 
+# The hook logs into CLAUDE_PLUGIN_DATA, which is set for the hook but not for a
+# shell running this script, so look everywhere a log can be: that directory if
+# known, the fixed fallback, and every plugin data directory, since its name
+# depends on which marketplace the plugin was installed from.
+log_files() {
+  { [ -n "${CLAUDE_PLUGIN_DATA:-}" ] && printf '%s\n' "$CLAUDE_PLUGIN_DATA/$LOG_NAME"
+    printf '%s\n' "$(dirname "$FALLBACK")/$LOG_NAME"
+    find "$HOME/.claude/plugins/data" -maxdepth 2 -name "$LOG_NAME" 2>/dev/null
+  } | awk '!seen[$0]++' | while read -r f; do [ -f "$f" ] && printf '%s\n' "$f"; done
+}
+
+show_log() {
+  local found=0 f
+  while read -r f; do
+    found=1
+    echo
+    echo "last sessions ($f):"
+    tail -n 5 "$f" | sed 's/^/  /'
+  done < <(log_files)
+  [ "$found" = 1 ] || { echo; echo "no hook log yet: no session has ended since this was installed"; }
+}
+
 case "$ACTION" in
   status)
     if [ -f "$MARKER" ] || [ -f "$FALLBACK" ]; then
       echo "on — every session that ends is graded"
       [ -f "$MARKER" ]   && echo "marker: $MARKER"
       [ -f "$FALLBACK" ] && [ "$MARKER" != "$FALLBACK" ] && echo "marker: $FALLBACK"
+      show_log
       exit 0
     fi
     echo "off — nothing is graded automatically; /evaluate-session still works"
+    show_log
     exit 1
     ;;
 
