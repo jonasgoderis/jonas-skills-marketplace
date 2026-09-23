@@ -1,6 +1,57 @@
 # Changelog
 
 
+## [1.10.0] - 2026-09-23
+
+### Added
+
+- **Evaluate-session skill.** Grades how *you* drove a Claude Code session —
+  not the code it produced. A session that shipped working code through six
+  vague prompts grades badly; one that carefully scoped a task that turned out
+  to be unnecessary grades well. You get a letter band, the two practices worth
+  focusing on with the message numbers they rest on, and the ones you did well,
+  written to `~/.claude/scorecards/` with a line appended to an index. The index
+  is the point: one scorecard is a mood, the table is whether anything is
+  improving. Scorecards live outside the project on purpose — they are about a
+  person, not a codebase, and a public repo should never carry one.
+- **A catalogue of nineteen practices** behind the grade, `BP-01` to `BP-19`,
+  each with its reasoning and how observable it is in a transcript. Only ten are
+  visible in a session; three are properties of the project, read from the
+  filesystem; the rest are inferable at best. A practice the evidence cannot
+  show is reported as unobserved rather than counted against you, because a
+  grade that punishes invisible things cannot be argued with and gets ignored.
+  The catalogue and the rubric are both meant to be edited.
+- **Automatic grading at the end of every session, off by default.** The plugin
+  registers a `SessionEnd` hook that does nothing until `enable-hook.sh --on`
+  writes a marker file, so installers who never wanted this pay a few
+  milliseconds per exit and nothing else. Switched on, it grades every real exit
+  on Haiku for roughly 6,000 input tokens — a fraction of a cent. It runs
+  detached, so it never delays the exit. `--off`, `--status` and `--test` do
+  what they say; `/evaluate-session` keeps working either way. Nothing is
+  written to `settings.json`, so no path can go stale when the plugin updates.
+- **A privacy boundary in front of the grading call.** Transcripts are reduced
+  to a digest before anything is sent: your messages verbatim, because they are
+  what is being graded, and everything else flattened to shape — tool names and
+  counts, files touched, commits, test runs. Assistant prose, tool output and
+  file contents never enter it. Paths are made relative to the project and
+  anything outside it is dropped. A transcript whose messages match a secret
+  pattern produces no digest at all rather than an annotated one. Real sessions
+  come out 127 to 659 times smaller, which is what makes grading every session
+  affordable.
+- **A calibration suite for the grader.** `plugin/evals/session-calibration/`
+  builds two synthetic sessions with known ground truth — one that cost itself
+  five episodes, one driven properly — and fails when either escapes its band.
+  A rubric that resolves ambiguity upward can quietly stop marking anything
+  down, and no real transcript can detect that: a run of A grades looks the same
+  whether the rubric works or not.
+
+### Changed
+
+- **`scripts/test.sh` validates plugin hooks.** A malformed `hooks.json` fails
+  silently — the hook simply never runs, and nothing else would notice. The
+  suite now checks that it parses, declares its events, and points at files that
+  exist and are executable.
+
 ## [1.9.1] - 2026-09-22
 
 ### Fixed
