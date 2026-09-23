@@ -1,6 +1,11 @@
 # Changelog
 
 
+## [1.12.0] - 2026-09-23
+
+### Added
+- Scorecards now record which session they graded, in an invisible `<!-- session: <id> -->` line at the end, so tools such as a dashboard can link each scorecard to its session.
+
 ## [1.11.0] - 2026-09-23
 
 ### Added
