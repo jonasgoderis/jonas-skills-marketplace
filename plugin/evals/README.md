@@ -1,13 +1,15 @@
 # Eval suite for the release-version skill
 
-Ten cases run by `claude plugin eval`. Eight ask whether the skill fires when
-it should and stays quiet when it should not; two drive it through an actual
-release and check what it does on the way.
+Twelve cases run by `claude plugin eval`. Eight ask whether the skill fires when
+it should and stays quiet when it should not; four drive it through an actual
+release and check what it does on the way. Two of those four are about the docs
+check: `stale-docs` must document a flag the README misses and leave a dated plan
+alone, and `internal-fix-no-docs` must not invent doc work for an internal change.
 
 ```sh
 scripts/eval.sh              # everything
 scripts/eval.sh trigger      # the eight trigger cases, ~$1 at one run each
-scripts/eval.sh behaviour    # the two behavioural cases
+scripts/eval.sh behaviour    # the four behavioural cases
 scripts/eval.sh out-the-door --runs 1 --keep-temp
 ```
 
@@ -18,7 +20,7 @@ Anything after the selector is passed through to `claude plugin eval`.
 A healthy run is **every case at 1.00 except `cut-a-release`, which lands at
 0.80–0.87**. That case carries the one judge-scored grader in the suite, and it
 disagrees with itself across runs on output a careful reader would accept. The
-four deterministic graders on that case have never produced a false result;
+deterministic graders on that case have never produced a false result;
 treat a judge failure as something to read, not something to fix. `eval.sh`
 gates at 0.8 for this reason — do not raise it to 1.0.
 
@@ -26,8 +28,14 @@ Pinned baseline, `claude-sonnet-5` with a `claude-haiku-4-5` judge:
 
 | Selection | Result | Cost |
 | --- | --- | --- |
-| `trigger`, 1 run | 8/8 at 1.00 | $0.87, 48s |
-| `behaviour`, 3 runs | 1.00 and 0.87 | $0.83, 57s |
+| `trigger`, 1 run | 8/8 at 1.00 | $0.89, 62s |
+| `behaviour`, 3 runs | 4/4 at 1.00 | $2.20, ~4 min |
+
+Re-recorded on 2026-09-23 when the docs check landed. The first pass of that run
+caught two real faults — a README typo written up as a changelog line, and doc
+edits made while a missing-tests question was still open — and a progress
+grader on `target: trace` that passed on the skill's own text. The table is the
+run after those fixes.
 
 The models are pinned in `scripts/eval.sh`. Unpinned, a model release moves the
 scores and a regression looks exactly like a model change.

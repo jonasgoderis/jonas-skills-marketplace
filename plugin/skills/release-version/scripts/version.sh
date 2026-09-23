@@ -7,10 +7,12 @@
 #   version.sh check                       preflight: tools, auth, repo, version sources
 #   version.sh current                     print the current version
 #   version.sh test                        run the project's test command
+#   version.sh docs                        the project's docs, what the branch touched, dead paths
 #   version.sh init [X.Y.Z]                create a VERSION file if no source exists
 #   version.sh bump <level> [--dry-run]    write the new version to every source
 #   version.sh release <level> --notes-file F --title T [flags]
 #       runs the project's tests first; --test-cmd overrides, --no-test skips
+#       --docs-note "<outcome>" records the docs check; --no-docs-check skips it
 #   version.sh tag [X.Y.Z]                 tag the current commit after a merge
 #
 # <level> is major | minor | patch | an explicit X.Y.Z
@@ -29,6 +31,8 @@ DRAFT=0
 RUN_TESTS=1
 TEST_CMD=""
 TEST_REPORT=""
+DOCS_NOTE=""
+DOCS_CHECK=1
 
 # BSD mktemp resolves a bare invocation through _CS_DARWIN_USER_TEMP_DIR and
 # ignores TMPDIR, so on macOS it writes to /var/folders even when TMPDIR points
@@ -306,6 +310,131 @@ run_tests() {
   fi
 }
 
+# --------------------------------------------------------------------- docs --
+
+# Emits "living<TAB>path" or "dated<TAB>path" for every doc a reader or an agent
+# relies on. The changelog is left out: this script writes it.
+#
+# A dated file (YYYY-MM-DD-*) or anything under adr/ or decisions/ records what
+# was true when it was written. Updating it to match today would falsify that
+# record, so it is listed as dated and never offered as a gap.
+detect_docs() {
+  (
+    cd "$REPO"
+    {
+      find . -maxdepth 1 -type f \( -iname 'CONTRIBUTING*' -o -name 'AGENTS.md' \)
+      find . -maxdepth 4 -type f \( -iname 'README*' -o -name 'CLAUDE.md' \) \
+        -not -path './.git/*' -not -path '*/node_modules/*' -not -path '*/vendor/*'
+      for d in docs doc; do
+        [ -d "$d" ] && find "$d" -type f \( -name '*.md' -o -name '*.mdx' \
+          -o -name '*.rst' -o -name '*.adoc' -o -name '*.txt' \)
+      done
+      true
+    } 2>/dev/null | sed 's|^\./||' | sort -u | while read -r p; do
+      case "$p" in
+        CHANGELOG*|*/CHANGELOG*) continue ;;
+      esac
+      if printf '%s' "${p##*/}" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}-' \
+         || case "/$p" in */adr/*|*/decisions/*) true ;; *) false ;; esac; then
+        printf 'dated\t%s\n' "$p"
+      else
+        printf 'living\t%s\n' "$p"
+      fi
+    done
+  )
+}
+
+# What "changed on this branch" is measured against. In combined mode the work
+# is on the current branch, so it is the default branch. In release mode the
+# work is already merged, so a diff against the default branch is empty and
+# would pass every doc as untouched; the last release tag is the honest base.
+docs_base() {
+  local b tag
+  if [ -n "$BASE" ]; then b="$BASE"
+  elif [ "$MODE" = "release" ]; then
+    tag="$(git -C "$REPO" describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)"
+    if [ -n "$tag" ]; then printf '%s\n' "$tag"; return 0; fi
+    b="$(default_branch)"
+  else
+    b="$(default_branch)"
+  fi
+  if git -C "$REPO" rev-parse --verify --quiet "origin/$b" >/dev/null 2>&1; then
+    printf 'origin/%s\n' "$b"
+  elif git -C "$REPO" rev-parse --verify --quiet "$b" >/dev/null 2>&1; then
+    printf '%s\n' "$b"
+  fi
+}
+
+# Backticked repo paths a doc names that no longer exist. Only tokens that look
+# unmistakably like a path count — a slash plus a file extension or a trailing
+# slash — so `origin/main` or `owner/repo` never raise a false alarm. Fenced
+# code blocks are skipped: they hold commands and example trees, not claims
+# about this repo. Docs routinely name a path relative to some subdirectory
+# ("the skill's `assets/x.md`"), so a path only counts as dead when no tracked
+# file ends with it either. A warning that fires on correct docs teaches people
+# to skip the warnings.
+stale_refs() {
+  local doc="$1" dir tok p tracked
+  dir="$(dirname "$doc")"
+  tracked="$(git -C "$REPO" ls-files 2>/dev/null | sed 's|^|/|')"
+  awk '/^[[:space:]]*(```|~~~)/ { fence = !fence; next } !fence' "$REPO/$doc" \
+    | grep -oE '`[^` ]+`' | tr -d '`' | sort -u \
+    | while read -r tok; do
+        case "$tok" in
+          *://*|/*|~*|-*|*'$'*|*'<'*|*'>'*|*'*'*|*'{'*|*'@'*|*'..'*) continue ;;
+          */*) ;;
+          *) continue ;;
+        esac
+        p="${tok%%:*}"
+        case "$p" in
+          */) ;;
+          *) printf '%s' "${p##*/}" | grep -Eq '\.[A-Za-z0-9]+$' || continue ;;
+        esac
+        [ -e "$REPO/$p" ] || [ -e "$REPO/$dir/$p" ] && continue
+        case "$p" in
+          */) printf '%s\n' "$tracked" | grep -qF "/$p" && continue ;;
+          *)  printf '%s\n' "$tracked" | grep -qE "/$(printf '%s' "$p" | sed 's/[.[\*^$()+?{|]/\\&/g')\$" && continue ;;
+        esac
+        printf '%s\n' "$p"
+      done
+}
+
+# Facts for the docs check, not a verdict. Whether a change needs a doc update is
+# judgement, and a gate that refused a typo fix for leaving the README alone
+# would be bypassed by reflex within a week. So this never fails: it says which
+# docs exist, which the branch touched, and which paths they name that are gone,
+# and the caller decides.
+report_docs() {
+  local base changed="" kind path n_dated=0 n_living=0 missing
+  base="$(docs_base)"
+  if [ -n "$base" ]; then
+    changed="$(git -C "$REPO" diff --name-only "$base...HEAD" 2>/dev/null || true)"
+    say "docs:           against $base ($(git -C "$REPO" rev-list --count "$base..HEAD" 2>/dev/null || echo '?') commit(s))"
+  else
+    say "docs:           no base to compare against — every doc shows as untouched"
+  fi
+  while IFS="$(printf '\t')" read -r kind path || [ -n "$kind" ]; do
+    [ -n "${kind:-}" ] || continue
+    if [ "$kind" = dated ]; then n_dated=$((n_dated+1)); continue; fi
+    n_living=$((n_living+1))
+    if printf '%s\n' "$changed" | grep -qxF "$path"; then
+      say "  touched    $path"
+    else
+      say "  untouched  $path"
+    fi
+  done <<< "$(detect_docs)"
+  [ "$n_living" -gt 0 ] || say "  none found"
+  [ "$n_dated" -eq 0 ] \
+    || say "  skipped    $n_dated point-in-time doc(s) — dated, adr/ or decisions/; never rewritten"
+  while IFS="$(printf '\t')" read -r kind path || [ -n "$kind" ]; do
+    [ "${kind:-}" = living ] || continue
+    while read -r missing; do
+      [ -n "$missing" ] && say "  warn: $path names \`$missing\`, which is not in this repo"
+    done < <(stale_refs "$path")
+  done <<< "$(detect_docs)"
+  return 0
+}
+
 default_branch() {
   local b
   b="$(git -C "$REPO" symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null || true)"
@@ -399,11 +528,17 @@ cmd_check() {
     say "version sources:"
     list_sources
   fi
+  git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1 && report_docs
   return $problems
 }
 
 cmd_test() {
   run_tests
+}
+
+cmd_docs() {
+  git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1 || die "$REPO is not a git repository."
+  report_docs
 }
 
 cmd_current() {
@@ -451,6 +586,15 @@ cmd_release() {
   [ -n "$level" ] || die "usage: $PROG release <level> --notes-file F --title T"
   [ -n "$NOTES_FILE" ] || die "--notes-file is required: the changelog body for this release."
   [ "$NOTES_FILE" = "-" ] || [ -f "$NOTES_FILE" ] || die "notes file not found: $NOTES_FILE"
+  # Same reasoning as the test gate: a release that skipped the docs check and
+  # one that ran it must not look identical in the PR afterwards.
+  if [ "$DOCS_CHECK" -eq 0 ]; then
+    DOCS_REPORT='Docs: **not checked** (`--no-docs-check`)'
+  elif [ -n "$DOCS_NOTE" ]; then
+    DOCS_REPORT="Docs: $DOCS_NOTE"
+  else
+    die "--docs-note is required: one line on what the docs check found (\"README updated\", \"checked, no change needed\"), or --no-docs-check to release without one."
+  fi
 
   preflight_tools
   preflight_repo
@@ -522,7 +666,7 @@ cmd_release() {
   local body title
   body="$(tmpfile)"
   { cat "$notes"
-    printf '\n\n---\n\nVersion: `%s` → `%s`  \n%s\n' "$cur" "$new" "$TEST_REPORT"
+    printf '\n\n---\n\nVersion: `%s` → `%s`  \n%s  \n%s\n' "$cur" "$new" "$TEST_REPORT" "$DOCS_REPORT"
   } > "$body"
   title="${PR_TITLE:-Release v$new}"
 
@@ -561,7 +705,7 @@ cmd_tag() {
 
 # ---------------------------------------------------------------------- main --
 
-[ $# -gt 0 ] || { sed -n '3,15p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
+[ $# -gt 0 ] || { sed -n '3,17p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
 CMD="$1"; shift
 
 ARGS=()
@@ -584,8 +728,11 @@ while [ $# -gt 0 ]; do
     --no-test)       RUN_TESTS=0 ;;
     --test-cmd)      TEST_CMD="${2:-}"; shift ;;
     --test-cmd=*)    TEST_CMD="${1#*=}" ;;
+    --docs-note)     DOCS_NOTE="${2:-}"; shift ;;
+    --docs-note=*)   DOCS_NOTE="${1#*=}" ;;
+    --no-docs-check) DOCS_CHECK=0 ;;
     --draft)         DRAFT=1 ;;
-    -h|--help)       sed -n '3,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)       sed -n '3,17p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     --*)             die "unknown flag: $1" ;;
     *)               ARGS+=("$1") ;;
   esac
@@ -599,10 +746,11 @@ REPO="$(cd "$REPO" && pwd)"
 case "$CMD" in
   check)   cmd_check ;;
   test)    cmd_test ;;
+  docs)    cmd_docs ;;
   current) cmd_current ;;
   init)    cmd_init ${ARGS[@]+"${ARGS[@]}"} ;;
   bump)    cmd_bump ${ARGS[@]+"${ARGS[@]}"} ;;
   release) cmd_release ${ARGS[@]+"${ARGS[@]}"} ;;
   tag)     cmd_tag ${ARGS[@]+"${ARGS[@]}"} ;;
-  *)       die "unknown command '$CMD'. Use: check | current | test | init | bump | release | tag" ;;
+  *)       die "unknown command '$CMD'. Use: check | current | test | docs | init | bump | release | tag" ;;
 esac

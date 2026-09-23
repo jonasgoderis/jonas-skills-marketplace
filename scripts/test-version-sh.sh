@@ -299,7 +299,7 @@ releasable() { # test-script-body, or "" for no test script
 
 releasable '#!/bin/sh
 exit 1'
-vs release patch --notes-file "$NOTES" --title "Release"
+vs release patch --notes-file "$NOTES" --docs-note "checked, no change needed" --title "Release"
 out="$VS_OUT"
 check_fail  "a failing test command aborts the release" "$RC"
 check_has   "it says the tests failed"    "tests failed" "$out"
@@ -308,7 +308,7 @@ check_clean "the tree is untouched afterwards"
 check_eq    "the version is unchanged" "0.3.0" "$(vso current)"
 
 releasable ""
-vs release patch --notes-file "$NOTES" --title "Release"
+vs release patch --notes-file "$NOTES" --docs-note "checked, no change needed" --title "Release"
 out="$VS_OUT"
 check_fail "no discoverable test command stops the release" "$RC"
 check_has  "it offers --test-cmd" "--test-cmd" "$out"
@@ -317,7 +317,7 @@ check_clean "the tree is untouched afterwards"
 
 releasable '#!/bin/sh
 exit 0'
-vs release patch --notes-file "$NOTES" --title "Release" --dry-run
+vs release patch --notes-file "$NOTES" --docs-note "checked, no change needed" --title "Release" --dry-run
 out="$VS_OUT"
 check_ok   "a passing test command lets the dry run through" "$RC"
 check_has  "the tests actually ran" "Tests passed" "$out"
@@ -328,7 +328,7 @@ echo "Repo state"
 releasable '#!/bin/sh
 exit 0'
 printf 'scratch\n' > "$REPO_DIR/junk.txt"
-vs release patch --notes-file "$NOTES" --title "Release" --dry-run
+vs release patch --notes-file "$NOTES" --docs-note "checked, no change needed" --title "Release" --dry-run
 out="$VS_OUT"
 check_fail "uncommitted work is not swept into the release" "$RC"
 check_has  "it names the offending path" "junk.txt" "$out"
@@ -337,7 +337,7 @@ rm -f "$REPO_DIR/junk.txt"
 releasable '#!/bin/sh
 exit 0'
 git -C "$REPO_DIR" checkout -q main
-vs release patch --notes-file "$NOTES" --title "Release" --dry-run
+vs release patch --notes-file "$NOTES" --docs-note "checked, no change needed" --title "Release" --dry-run
 out="$VS_OUT"
 check_fail "combined mode refuses to release from the base branch" "$RC"
 check_has  "it suggests the alternative" "--mode release" "$out"
@@ -345,7 +345,7 @@ check_has  "it suggests the alternative" "--mode release" "$out"
 releasable '#!/bin/sh
 exit 0'
 GH_LOG="$TMPROOT/gh$repo_n.log"; export GH_LOG
-vs release patch --notes-file "$NOTES" --title "Release v0.3.1"
+vs release patch --notes-file "$NOTES" --docs-note "checked, no change needed" --title "Release v0.3.1"
 out="$VS_OUT"
 unset GH_LOG
 check_ok  "a full release run succeeds"            "$RC"
@@ -363,7 +363,7 @@ echo "The PR body"
 
 releasable '#!/bin/sh
 exit 0'
-vs release patch --notes-file "$NOTES" --title "Release" --dry-run
+vs release patch --notes-file "$NOTES" --docs-note "checked, no change needed" --title "Release" --dry-run
 out="$VS_OUT"
 check_has "it records the test command that ran" 'Tests: `scripts/test.sh` passed' "$out"
 check_has "it records the version transition"    'Version: `0.3.0` → `0.3.1`'      "$out"
@@ -372,11 +372,109 @@ check_has "nothing was pushed"                   "would run: git"               
 
 releasable '#!/bin/sh
 exit 0'
-vs release patch --notes-file "$NOTES" --title "Release" --dry-run --no-test
+vs release patch --notes-file "$NOTES" --docs-note "checked, no change needed" --title "Release" --dry-run --no-test
 out="$VS_OUT"
 check_has "skipping tests is recorded in the PR body" 'Tests: **skipped**' "$out"
 
-# ----------------------------------------------------- 10. temporary files --
+releasable '#!/bin/sh
+exit 0'
+vs release patch --notes-file "$NOTES" --docs-note "README updated" --title "Release" --dry-run
+out="$VS_OUT"
+check_has "it records the docs check outcome" 'Docs: README updated' "$out"
+
+releasable '#!/bin/sh
+exit 0'
+vs release patch --notes-file "$NOTES" --title "Release" --dry-run
+out="$VS_OUT"
+check_fail  "a release without --docs-note is refused" "$RC"
+check_has   "it offers --docs-note"     "--docs-note"     "$out"
+check_has   "it offers --no-docs-check" "--no-docs-check" "$out"
+check_clean "the tree is untouched afterwards"
+
+releasable '#!/bin/sh
+exit 0'
+vs release patch --notes-file "$NOTES" --no-docs-check --title "Release" --dry-run
+out="$VS_OUT"
+check_ok  "--no-docs-check lets the release through" "$RC"
+check_has "skipping the docs check is recorded"     'Docs: **not checked**' "$out"
+
+# ----------------------------------------------------------- 10. the docs --
+echo "The docs"
+
+# A repo on a feature branch ahead of origin/main, with one doc of each kind.
+documented() {
+  newrepo
+  printf '0.3.0\n' > "$REPO_DIR/VERSION"
+  mkdir -p "$REPO_DIR/docs/plans" "$REPO_DIR/docs/adr" "$REPO_DIR/sub" "$REPO_DIR/scripts"
+  printf '# x\n\nRun `scripts/build.sh`.\n' > "$REPO_DIR/README.md"
+  printf 'Conventions.\n'                  > "$REPO_DIR/CLAUDE.md"
+  printf 'Nested.\n'                       > "$REPO_DIR/sub/CLAUDE.md"
+  printf 'Usage.\n'                        > "$REPO_DIR/docs/usage.md"
+  printf 'Old plan, names `scripts/gone.sh`.\n' > "$REPO_DIR/docs/plans/2026-01-01-plan.md"
+  printf 'A decision.\n'                   > "$REPO_DIR/docs/adr/0001-thing.md"
+  printf '# Changelog\n'                   > "$REPO_DIR/CHANGELOG.md"
+  printf 'echo\n'                          > "$REPO_DIR/scripts/build.sh"
+  commit_all "initial"
+  with_origin
+  git -C "$REPO_DIR" checkout -q -b feature
+}
+
+documented
+printf 'Usage, now with more.\n' > "$REPO_DIR/docs/usage.md"
+commit_all "Document more"
+vs docs
+out="$VS_OUT"
+check_ok   "docs succeeds"                          "$RC"
+check_has  "it measures against the default branch" "against origin/main (1 commit(s))" "$out"
+check_has  "a doc the branch changed is touched"    "touched    docs/usage.md" "$out"
+check_has  "one it did not is untouched"            "untouched  README.md" "$out"
+check_has  "a nested CLAUDE.md is found"            "sub/CLAUDE.md" "$out"
+check_has  "dated docs and ADRs are skipped"        "skipped    2 point-in-time" "$out"
+case "$out" in *CHANGELOG*) fail "the changelog is not listed as a doc" ;; *) pass "the changelog is not listed as a doc" ;; esac
+case "$out" in *warn:*) fail "a path that exists is not reported — $out" ;; *) pass "a path that exists is not reported" ;; esac
+case "$out" in *gone.sh*) fail "a dated doc is never checked for dead paths" ;; *) pass "a dated doc is never checked for dead paths" ;; esac
+
+documented
+git -C "$REPO_DIR" rm -q scripts/build.sh
+commit_all "Drop the build script"
+vs docs
+out="$VS_OUT"
+check_ok  "a dead path does not fail the check" "$RC"
+check_has "a dead path is reported"            'README.md names `scripts/build.sh`, which is not in this repo' "$out"
+
+documented
+printf 'See `docs/usage.md`, `assets/x.md`, `origin/main` and:\n\n```\nscripts/nowhere.sh\n`scripts/fenced.sh`\n```\n' > "$REPO_DIR/README.md"
+mkdir -p "$REPO_DIR/sub/assets"; printf 'x\n' > "$REPO_DIR/sub/assets/x.md"
+commit_all "Point at things"
+vs docs
+out="$VS_OUT"
+case "$out" in *warn:*) fail "live, suffix-matched, non-path and fenced tokens raise nothing — $out" ;;
+  *) pass "live, suffix-matched, non-path and fenced tokens raise nothing" ;; esac
+
+newrepo
+printf 'x\n' > "$REPO_DIR/VERSION"
+commit_all "initial"
+vs docs
+out="$VS_OUT"
+check_ok  "a repo without docs is not an error" "$RC"
+check_has "it says there are none"              "none found" "$out"
+
+documented
+git -C "$REPO_DIR" checkout -q main
+git -C "$REPO_DIR" tag -a v0.3.0 -m v0.3.0
+printf 'Merged change.\n' > "$REPO_DIR/docs/usage.md"
+commit_all "Merged work"
+vs docs --mode release
+out="$VS_OUT"
+check_has "release mode measures against the last tag" "against v0.3.0 (1 commit(s))" "$out"
+check_has "and sees the merged work"                   "touched    docs/usage.md" "$out"
+
+documented
+vs check
+out="$VS_OUT"
+check_has "check includes the docs report" "docs:" "$out"
+
+# ----------------------------------------------------- 11. temporary files --
 echo "Temporary files"
 
 # Found by the behavioural eval, not by these tests: BSD mktemp ignores TMPDIR

@@ -1,6 +1,17 @@
 # Changelog
 
 
+## [1.13.0] - 2026-09-23
+
+### Added
+
+- Releases now check the project's docs against the change before going out. `version.sh check`, and `version.sh docs` on its own, list every README, CLAUDE.md, AGENTS.md, CONTRIBUTING and living doc under `docs/`, mark which ones the branch touched, and warn about paths a doc names that are no longer in the repo. The skill judges each doc for its reader, writes and commits what is missing before the dry run, and leaves dated plans, ADRs and decision records alone because they are history.
+- A release now shows its progress: nine fixed steps marked done, running or still to come, through the task list when the harness has one and always at the approval step.
+
+### Changed
+
+- `version.sh release` requires `--docs-note "<outcome>"`, which appears in the PR body under the tests line, or `--no-docs-check`, which makes the PR say the docs were not checked. Anyone calling `version.sh release` directly needs to add one of the two.
+
 ## [1.12.0] - 2026-09-23
 
 ### Added
