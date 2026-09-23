@@ -130,6 +130,7 @@ fail silently, to avoid one `[ -f ]` test.
                           │     reading is untrusted text.
                           │
                           └─► ~/.claude/scorecards/<date>-<time>-<project>.md
+                              ends with <!-- session: <session-id> -->
                               ~/.claude/scorecards/index.md   one row appended
 ```
 

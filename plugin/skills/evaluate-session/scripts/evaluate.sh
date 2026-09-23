@@ -140,6 +140,9 @@ PROJECT="$(basename "$PROJECT_DIR" | tr ' ' '-')"
 STAMP="$(date +%Y-%m-%d-%H%M)"
 DEST="$OUT_DIR/${STAMP}-${PROJECT}.md"
 cp "$REPORT" "$DEST"
+# Tie the scorecard to the session it graded, so a consumer (the Pulse app) can link back.
+# An HTML comment stays invisible when rendered and outside the grader's template.
+printf '\n<!-- session: %s -->\n' "$SESSION" >> "$DEST"
 
 # One scorecard is a mood; the index is whether the practice is improving.
 GRADE="$(grep -m1 -oE '^\*\*Grade: [^*]+\*\*' "$REPORT" | sed 's/\*\*Grade: //; s/\*\*//' | tr -d '\n')"
