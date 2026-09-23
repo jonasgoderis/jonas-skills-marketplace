@@ -17,6 +17,7 @@ emitted at all.
 """
 
 import argparse
+import collections
 import json
 import os
 import re
@@ -39,6 +40,7 @@ NOT_A_PROMPT = (
     "Base directory for this skill:",
 )
 COMMAND_RE = re.compile(r"<command-(?:name|message)>/?([^<]+)</command-")
+COMMAND_ARGS_RE = re.compile(r"<command-args>([^<]*)</command-args>")
 GIT_COMMIT_RE = re.compile(r"\bgit\s+(?:-[^\s]+\s+)*commit\b")
 # Files are often written by shell redirection rather than the edit tools, and a
 # detector that only watches Edit/Write reports a session as touching nothing.
@@ -98,6 +100,8 @@ def parse(transcript):
     tests = 0
     compactions = 0
     assistant_turns = 0
+    side_questions = 0
+    context_sizes = []
 
     with open(transcript, "r", encoding="utf-8", errors="replace") as fh:
         for line in fh:
@@ -133,7 +137,14 @@ def parse(transcript):
             if e.get("isCompactSummary"):
                 compactions += 1
                 continue
-            if e.get("isMeta") or e.get("isSidechain"):
+            if e.get("isSidechain"):
+                # A side question is asked deliberately to keep it out of the
+                # main thread, so it is evidence of context hygiene rather than
+                # noise. Counted, never read.
+                if e.get("type") == "user":
+                    side_questions += 1
+                continue
+            if e.get("isMeta"):
                 continue
 
             kind = e.get("type")
@@ -147,14 +158,25 @@ def parse(transcript):
                     continue
                 m = COMMAND_RE.search(body)
                 if m:
-                    messages.append({"at": iso(prev_ts), "kind": "command",
-                                     "text": "/" + m.group(1).strip()})
+                    # Arguments are most of the signal. "/release-version 1.9.2"
+                    # is a specific instruction; "/release-version" looks like an
+                    # empty message and reads as a vague one.
+                    args = COMMAND_ARGS_RE.search(body)
+                    text = "/" + m.group(1).strip()
+                    if args and args.group(1).strip():
+                        text += " " + args.group(1).strip()
+                    messages.append({"at": iso(prev_ts), "kind": "command", "text": text})
                 else:
                     messages.append({"at": iso(prev_ts), "kind": "prompt", "text": body})
                 continue
 
             if kind == "assistant":
                 assistant_turns += 1
+                u = e.get("message", {}).get("usage") or {}
+                total_in = (u.get("input_tokens") or 0) + (u.get("cache_read_input_tokens") or 0) \
+                    + (u.get("cache_creation_input_tokens") or 0)
+                if total_in:
+                    context_sizes.append(total_in)
                 content = e.get("message", {}).get("content")
                 if not isinstance(content, list):
                     continue
@@ -192,6 +214,7 @@ def parse(transcript):
         "skills": skills, "subagent_types": subagent_types,
         "files_edited": files_edited, "commits": commits, "tests": tests,
         "compactions": compactions, "assistant_turns": assistant_turns,
+        "side_questions": side_questions, "context_sizes": context_sizes,
     }
 
 
@@ -223,25 +246,33 @@ def structural(project_dir):
         return {"checked": False}
 
     claude_md = root / "CLAUDE.md"
-    docs = list(root.glob("**/*.md"))
-    rules = root / ".claude" / "rules"
+    rules_here = root / ".claude" / "rules"
+    # Rules are commonly kept at user level and symlinked from a dotfiles repo,
+    # so a project-only check reports "absent" for someone doing this well.
+    rules_home = Path.home() / ".claude" / "rules"
     skills_root = root / "plugin" / "skills"
     if not skills_root.is_dir():
         skills_root = root / ".claude" / "skills"
     skill_dirs = [d for d in skills_root.iterdir() if d.is_dir()] if skills_root.is_dir() else []
 
+    body = claude_md.read_text(encoding="utf-8", errors="replace") if claude_md.is_file() else ""
+    # BP-02 is about context being split and pointed at, not about filenames.
+    # Counting files whose name contains "claude" scored a properly split
+    # docs/testing.md as unsplit.
+    referenced = {m for m in re.findall(r"[\w./-]+\.md", body)
+                  if (root / m).is_file() and m.lower() != "claude.md"}
+
     return {
         "checked": True,
         "claude_md": {
             "present": claude_md.is_file(),
-            "lines": len(claude_md.read_text(encoding="utf-8", errors="replace").splitlines())
-            if claude_md.is_file() else 0,
+            "lines": len(body.splitlines()),
+            "references_other_files": sorted(referenced),
         },
-        # BP-02: context split across files rather than one slab.
-        "context_files": len([p for p in docs if p.name.lower().endswith(".md")
-                              and "claude" in p.name.lower()]),
-        "rules_dir": {"present": rules.is_dir(),
-                      "files": len(list(rules.glob("*.md"))) if rules.is_dir() else 0},
+        "rules_files": {
+            "project": len(list(rules_here.glob("*.md"))) if rules_here.is_dir() else 0,
+            "user": len(list(rules_home.glob("*.md"))) if rules_home.is_dir() else 0,
+        },
         # BP-14: skills using progressive disclosure.
         "skills": {
             "count": len(skill_dirs),
@@ -287,6 +318,11 @@ def main():
               + ". Nothing was written.", file=sys.stderr)
         return 4
 
+    # Number before truncating. Renumbering afterwards makes every citation in
+    # the report point at a different turn than the one it describes.
+    for n, m in enumerate(d["messages"], 1):
+        m["i"] = n
+
     # Truncate by whole messages from the oldest end, and say so.
     dropped = 0
     total = sum(len(m["text"]) for m in d["messages"])
@@ -311,10 +347,20 @@ def main():
             "assistant_turns": d["assistant_turns"],
         },
         "truncated": {"messages_dropped": dropped},
-        "messages": [dict(i=i, **m) for i, m in enumerate(d["messages"], 1)],
-        "activity": {
+        "messages": d["messages"],
+        # Named for what it is. Every entry below is something the ASSISTANT
+        # chose to do. The user cannot launch a subagent, run a test or make a
+        # commit, so none of it is evidence of what the user did — only of what
+        # happened after they asked.
+        "assistant_activity": {
             "tools": dict(sorted(d["tools"].items(), key=lambda kv: -kv[1])),
             "tool_calls": sum(d["tools"].values()),
+            # Repeated identical runs are the signal for work that wants a script.
+            "repeated_tool_runs": {k: v for k, v in sorted(
+                collections.Counter(
+                    " > ".join(d["sequence"][i:i + 3])
+                    for i in range(max(0, len(d["sequence"]) - 2))
+                ).items(), key=lambda kv: -kv[1])[:5] if v >= 3},
             "skills_invoked": sorted(set(d["skills"])),
             "subagents": {
                 "launched": len(d["subagent_types"]),
@@ -326,6 +372,16 @@ def main():
                                             for f in d["files_edited"]) if r}),
             "commits": d["commits"],
             "test_runs": d["tests"],
+            "compactions": d["compactions"],
+        },
+        # Things the user did, as opposed to things done on their behalf.
+        "user_activity": {
+            "side_questions": d["side_questions"],
+        },
+        # Context pressure, which is what BP-01 is actually about.
+        "context": {
+            "peak_input_tokens": max(d["context_sizes"]) if d["context_sizes"] else 0,
+            "final_input_tokens": d["context_sizes"][-1] if d["context_sizes"] else 0,
             "compactions": d["compactions"],
         },
         "structural": structural(args.project_dir),

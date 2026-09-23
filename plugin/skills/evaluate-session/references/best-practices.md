@@ -44,9 +44,14 @@ answers that drift from what was agreed — and end the session deliberately rat
 than pushing through. Distil what matters into a file, clear, and start again
 from the briefing instead of the transcript.
 
-**Observability:** Indirect. Turn count, session duration, compaction events and
-whether a handover file was written are all visible; whether the session
-*should* have been ended earlier is a judgement on top of those.
+**Observability:** Direct, through `context.peak_input_tokens` and
+`context.compactions`. Context pressure is measured, not guessed. Turn count is
+not a proxy for it: a long session of small, well-scoped steps is BP-03 done
+well, and penalising its length would punish the thing this catalogue asks for.
+A compaction is a fact about how much context was consumed, much of it by the
+assistant, so treat it as a prompt to ask whether a handover was due — not as a
+failure on its own.
+
 
 ## BP-02 — Split project context across files
 
@@ -63,7 +68,9 @@ Detail that only matters for one part of the system — a test strategy, an API'
 conventions, a deployment procedure — lives in its own file and is pointed at
 rather than inlined.
 
-**Observability:** Structural. Read from the project layout.
+**Observability:** Structural, from `structural.claude_md`: its length, and
+whether it points at other files rather than inlining them. A large instructions
+file that references nothing is the shape this practice warns about.
 
 ## BP-03 — Break big tasks into small, checkable steps
 
@@ -76,7 +83,12 @@ change is quick; reviewing a large one is work people skip.
 
 **Doing it well:** ask for something with a visible result, look at it, then ask
 for the next thing. Where the shape of the work is unclear, agree the plan first
-and execute it in pieces.
+and execute it in pieces. Checkpointing between steps is what makes a failure
+cost one step instead of the session — that part is BP-05.
+
+This is about decomposing the *task*. Treating a single answer as a first draft
+is BP-09, and persisting state between steps is BP-05. One sprawling stretch of
+work touches all three; report it once, under whichever fits best.
 
 **Observability:** Direct.
 
@@ -97,12 +109,16 @@ The conversation is volatile and the filesystem is not. Status, decisions and
 open questions held only in context are lost at the next clear, compaction or
 crash — and they are exactly the things most expensive to reconstruct.
 
-**Doing it well:** keep todos, decisions and current status in files. Commit at
-points where the work is coherent, not only when it is finished. Treat the
-conversation as the place where work is discussed, not where it is stored.
+**Doing it well:** keep todos, decisions and current status in files. Ask for the
+work to be committed at points where it is coherent, not only when it is
+finished, and pushed once it is on a branch of its own. Treat the conversation as
+the place where work is discussed, not where it is stored.
 
-**Observability:** Indirect. Files written and commits made during the session
-are visible; whether the right things were captured is not.
+**Observability:** Direct, but on the *request* rather than the result. Many
+setups forbid committing unless asked, so a commit count of zero can mean the
+instruction was followed exactly. What is gradeable is whether the user asked for
+their work to be secured as it accumulated — visible in their own messages. Never
+read `assistant_activity.commits` as something the user did or omitted.
 
 ---
 
@@ -118,7 +134,16 @@ assumption, and the assumptions are invisible until the output is wrong.
 and what "done" means. Constraints are more useful than adjectives: "fits in one
 screen" beats "concise".
 
-**Observability:** Direct.
+Specific means the information the user held at the time of asking. It does not
+mean pre-deciding the work being delegated: someone who asks for a skill without
+dictating how it installs has delegated a decision, not left a gap. Judgement
+handed over deliberately is the point of asking.
+
+**Observability:** Direct, from the words of the message alone. Do not work
+backwards from an outcome. That something later needed redoing is not evidence
+the request was vague — the redoing may have been caused by a choice the
+assistant made, and a vagueness finding requires quoting what the user should
+have said instead.
 
 ## BP-07 — Show a concrete example
 
@@ -132,6 +157,11 @@ material, point at the material.
 
 **Observability:** Direct, but frequently not applicable — many tasks give no
 natural occasion for an example.
+
+BP-10 warns against the same act in the opposite situation. They are not in
+conflict: an example shows the *form* the answer should take, which helps, while
+a list of candidate answers narrows *what* it may say, which does not. If it is
+not clear which one a message is doing, neither practice is a finding.
 
 ## BP-08 — Spell out the format
 
@@ -155,7 +185,12 @@ as a way of finding out what you actually wanted.
 substantial, and prefer a quick rough answer that can be steered over a long one
 that has to be argued with.
 
+Distinct from BP-03: that one is about cutting the work up, this one is about not
+expecting any single answer to be final. A session can decompose a task perfectly
+and still accept the first version of every piece.
+
 **Observability:** Direct.
+
 
 ## BP-10 — Do not inject the answer
 
@@ -183,13 +218,20 @@ back to the reader.
 before the file list, the approach before the implementation. A rough diagram
 often settles in seconds what paragraphs argue about.
 
+This is about how much detail comes *back*, not about planning the work. Asking
+for research and an agreed plan before execution is BP-03. Nothing here rewards
+short prompts: a long, specific request that asks for a short answer is this
+practice done well.
+
 **Observability:** Direct.
+
 
 ---
 
 # Delegation and determinism
 
-## BP-12 — Send wide, read-heavy work to a subagent
+
+## BP-12 — Keep the main thread clean
 
 Reading a dozen files into the main conversation to answer one question leaves
 all twelve in context permanently, crowding out the thing you actually care
@@ -198,11 +240,19 @@ about. A subagent reads them somewhere else and reports back the conclusion.
 The same applies to work that is naturally separate — a review pass, a broad
 search, a survey of how something is done across a codebase.
 
-**Doing it well:** delegate when the answer is small but finding it means reading
-a lot. Keep it in the main conversation when the material itself is what you need
-to work with.
+The same instinct applies at three sizes: a side question asked off the main
+thread, a subagent for work that needs a lot of reading to produce a small
+answer, and a separate session for a separate subject (BP-04).
 
-**Observability:** Direct.
+**Doing it well:** delegate when the answer is small but finding it means reading
+a lot. Ask passing questions somewhere they will not accumulate. Keep it in the
+main conversation when the material itself is what you need to work with.
+
+**Observability:** Partial, and asymmetric. `user_activity.side_questions` is
+something the user did. `assistant_activity.subagents` is not — the assistant
+decides whether to delegate, so a session with none is not a user failing.
+Delegation the user explicitly asked for is visible in their messages; that is
+the only form of it worth crediting or missing.
 
 ## BP-13 — Offload deterministic work to scripts
 
@@ -211,13 +261,22 @@ slightly differently each time, at the cost of tokens and the risk of variation
 where none was wanted. Written once as a script, it runs the same way forever and
 can be tested.
 
-**Doing it well:** when you notice the same sequence of steps being re-derived —
-a version bump, an index rebuild, a release, a file transformation — write it
-down as code and call it. Judgement belongs in the prompt; procedure belongs in a
+**Doing it well:** the test is whether the steps are determined in advance, not
+whether you have done them three times. If the same input always implies the same
+sequence — a version bump, an index rebuild, a release, a file transformation —
+it belongs in a script. Judgement belongs in the prompt; procedure belongs in a
 script.
 
-**Observability:** Indirect. Repeated manual sequences are visible; whether a
-script already existed for them needs the filesystem.
+The exception is scale, not principle: a deterministic thing done once and never
+again is not worth the script. Deterministic *and* repeated, or deterministic
+*and* consequential enough that a variation would matter.
+
+**Observability:** Indirect and weak. `assistant_activity.repeated_tool_runs`
+shows sequences that recurred, which hints at work that wanted a script — but
+whether a script already existed, and whether the user could have known, is not
+in the digest. Raise it only when the repetition is both large and plainly
+mechanical.
+
 
 ## BP-14 — Use reference files so context loads on demand
 
@@ -246,8 +305,11 @@ load-bearing — are exactly the cases where the prose is most reassuring.
 actually verified rather than assuming the claim implies a check, and treat
 "I confirmed X" as a claim to test rather than a result.
 
-**Observability:** Indirect. Whether checks were run is visible; whether the right
-things were checked is not.
+**Observability:** Indirect and asymmetric. Test runs in `assistant_activity` are
+the assistant's doing. What is the user's is whether they asked for verification
+where it mattered, or accepted a load-bearing claim without one — and that is
+visible only when the message shows it. Absence of a visible check is not a
+finding.
 
 ## BP-16 — Read the actual diff
 
@@ -259,7 +321,11 @@ what was actually done is stated exactly.
 mistake would cost. Small steps (BP-03) are what make this affordable — the
 practice fails mostly because the changes got too big to review.
 
-**Observability:** Indirect.
+**Observability:** None. Reading happens outside the transcript entirely, and the
+digest carries no diffs and no per-file edit counts. Report this as unobserved
+unless the user's own words show it — asking about a specific change, or
+questioning something in one. The size of a change says nothing about whether it
+was read, and must not be used as a proxy.
 
 ## BP-17 — Keep a human deciding anything with real consequences
 
@@ -290,8 +356,11 @@ afterwards is too late. Anonymise personal data unless the real values are
 genuinely in scope. Reference where a secret lives instead of reproducing its
 value.
 
-**Observability:** Direct. Sensitive material in what was sent is detectable;
-absence of a problem is not proof of care.
+**Observability:** Direct only as a failure. A digest exists at all only because
+the session passed the secret scan, so a clean session proves nothing and must
+not be listed as done well on that basis — and the scan covers keys, tokens and
+connection strings, not personal data or client names. Raise this practice only
+when something in the user's own messages shows it, in either direction.
 
 ---
 
@@ -304,8 +373,11 @@ how to write commits, what to do before anything outbound — belong in their ow
 rule files rather than being restated in each project. Separate files can be
 composed, reused and changed in one place.
 
-**Doing it well:** a rule file per concern, named for the concern. Project
-instructions then carry only what is specific to that project, which also keeps
-BP-02 achievable.
+**Doing it well:** a rule file per concern, named for the concern. They belong
+wherever their scope is — rules that hold across every project live at user level
+and are commonly symlinked from a dotfiles repo. Project instructions then carry
+only what is specific to that project, which also keeps BP-02 achievable.
 
-**Observability:** Structural.
+**Observability:** Structural, from `structural.rules_files`, which counts both
+project-level and user-level rule files. A project with none is not a finding
+when the user keeps theirs at user level.
