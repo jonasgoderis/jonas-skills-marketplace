@@ -1,6 +1,12 @@
 # Changelog
 
 
+## [1.11.0] - 2026-09-23
+
+### Added
+
+- The evaluate-session hook now logs one line for every session that ends: graded, skipped and why (grading off, too few prompts, a secret matched, no transcript), or failed and where. The log lives in the plugin's data directory, trims itself, and `enable-hook.sh --status` shows the last five lines. Before this, a skipped session looked exactly like a hook that never fired.
+
 ## [1.10.0] - 2026-09-23
 
 ### Added
