@@ -113,7 +113,9 @@ again — without the guard the first exit forks until something gives out.
 ## Where the output goes
 
 `~/.claude/scorecards/<date>-<time>-<project>.md`, with one line appended to
-`~/.claude/scorecards/index.md`.
+`~/.claude/scorecards/index.md`. Each scorecard ends with an invisible
+`<!-- session: <session-id> -->` line so a tool can link it back to the session
+it graded.
 
 Outside the project on purpose. A scorecard is about a person, it is not part of
 any codebase, and a repo that is public should never carry one.
