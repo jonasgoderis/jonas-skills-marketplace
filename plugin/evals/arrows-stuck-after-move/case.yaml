@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: arrows-stuck-after-move
+tags: [trigger, drawio-conventions]
+description: >
+  The symptom rule A exists for, described without any draw.io vocabulary. The
+  description claims this triggers; this is the case that checks it.
+context:
+  scaffold_script: scaffold.sh

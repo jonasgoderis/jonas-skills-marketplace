@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# The world every drawio-conventions case wakes up in.
+#
+# The eval sandbox starts with an empty working directory. This gives the
+# prompts a referent: a small project with a list of services, a login flow in
+# prose, and an existing docs/flow.drawio. In that diagram the User -> API edge
+# was drawn by hand with fixed connection points (exitX, entryX, ...), which is
+# what rule A forbids, and the API -> Database edge follows the house style.
+# The edit cases use that to check that an untouched old edge is reported, not
+# silently rewritten.
+#
+# Run by `claude plugin eval --scaffold` in the case workspace, which is the
+# working directory. No network, no remote.
+set -eu
+
+git init -q -b main .
+git config user.email eval@example.invalid
+git config user.name  Eval
+git config commit.gpgsign false
+
+cat > README.md <<'EOF'
+# shop
+
+A small web shop: a web front end, an orders API and a payments service.
+EOF
+
+cat > services.md <<'EOF'
+# Services
+
+- **Web** — the front end. Calls the Orders API.
+- **Orders API** — takes orders. Stores them in the Orders DB. Calls Payments.
+- **Payments** — charges the card. Calls the external Card Provider.
+- **Orders DB** — PostgreSQL.
+- **Card Provider** — external, not ours.
+EOF
+
+cat > login.md <<'EOF'
+# Login flow
+
+1. The user enters email and password.
+2. The API checks the password.
+3. If the password is wrong, show an error and go back to step 1.
+4. If it is right, the API creates a session.
+5. The user lands on the dashboard.
+EOF
+
+mkdir -p docs
+cat > docs/flow.drawio <<'EOF'
+<mxfile>
+  <diagram id="flow" name="Flow">
+    <mxGraphModel dx="0" dy="0" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="user" value="User" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="100" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="api" value="API" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="260" y="100" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="db" value="Database" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;" vertex="1" parent="1">
+          <mxGeometry x="480" y="90" width="100" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="e-user-api" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="user" target="api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-api-db" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;jumpStyle=arc;jumpSize=6;strokeColor=#999999;strokeWidth=2;endArrow=block;" edge="1" parent="1" source="api" target="db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
+EOF
+
+git add -A
+git commit -q -m "Initial shop project with a flow diagram"

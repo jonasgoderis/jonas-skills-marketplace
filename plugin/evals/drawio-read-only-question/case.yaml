@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: drawio-read-only-question
+tags: [trigger, drawio-conventions]
+description: >
+  Near miss: names a .drawio file but only asks a question about it. Nothing is
+  created or edited, so there is no XML for the conventions to shape.
+context:
+  scaffold_script: scaffold.sh

@@ -43,6 +43,17 @@ too-short-to-grade          sessions
 grading-call-fails          sessions
 dry-run-after-rubric-edit   sessions
 switch-on-auto-grading      sessions
+drawio-new-diagram          drawio-repo
+drawio-add-a-box            drawio-repo
+diagrams-net-login-flow     drawio-repo
+arrows-stuck-after-move     drawio-repo
+mermaid-login-flow          drawio-repo
+drawio-read-only-question   drawio-repo
+drawio-export-png           drawio-repo
+house-style-new-diagram     drawio-repo
+edit-reports-old-edge       drawio-repo
+fixed-point-on-request      drawio-repo
+icon-labels-above-lines     drawio-repo
 '
 
 CHECK=0
