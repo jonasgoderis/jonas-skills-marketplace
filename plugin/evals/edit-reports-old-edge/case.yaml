@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: edit-reports-old-edge
+tags: [behaviour, drawio-conventions]
+description: >
+  Adding a box to the fixture's flow.drawio. The new edges must follow the house
+  style. The old User -> API edge has fixed connection points; the skill says to
+  leave an untouched edge as it is and tell the user, not to rewrite it
+  silently.
+context:
+  scaffold_script: scaffold.sh

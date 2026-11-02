@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: fixed-point-on-request
+tags: [behaviour, drawio-conventions]
+description: >
+  The one exception to rule A: the user explicitly asks for a fixed exit point.
+  The skill should set only the keys for that end, keep the rest of the house
+  style, and name the exception in its report.
+context:
+  scaffold_script: scaffold.sh

@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Runs the release-version eval suite.
+# Runs the plugin's eval suite.
 #
-#   eval.sh              every case
-#   eval.sh trigger      the eight trigger cases only (cheap, ~$2)
-#   eval.sh behaviour    the four behavioural cases only
-#   eval.sh <name>       one case by name
+#   eval.sh                    every case, every skill
+#   eval.sh trigger            the trigger cases only (cheap, ~$1 per skill)
+#   eval.sh behaviour          the behavioural cases only
+#   eval.sh release-version    one skill's cases — any skill directory name works
+#   eval.sh <name>             one case by name
 #
 # Anything after the selector is passed through to `claude plugin eval`, so
 # `eval.sh trigger --runs 1` works for a quick look.
@@ -28,13 +29,18 @@ JUDGE_MODEL="${EVAL_JUDGE_MODEL:-claude-haiku-4-5-20251001}"
 # a healthy suite look broken. See the Phase 3 notes in
 # docs/plans/2026-09-18-release-version-eval-plan.md.
 THRESHOLD="${EVAL_THRESHOLD:-0.8}"
-MAX_COST="${EVAL_MAX_COST:-8}"
+# Sized for the whole suite at three runs, two skills: roughly $5 each.
+MAX_COST="${EVAL_MAX_COST:-16}"
 
 sel="${1:-}"; [ $# -gt 0 ] && shift
 case "$sel" in
   ""|all)              filter=() ;;
   trigger|behaviour)   filter=(--tag "$sel") ;;
-  *)                   filter=(--case "$sel") ;;
+  *) if [ -d "$ROOT/plugin/skills/$sel" ]; then
+       filter=(--tag "$sel")    # every case is tagged with the skill it tests
+     else
+       filter=(--case "$sel")
+     fi ;;
 esac
 
 # --no-publish is not optional. The HTML report would otherwise be uploaded to

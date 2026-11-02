@@ -44,7 +44,9 @@ one known misfiling that survives.
 
 ## The fixture
 
-`make-sessions.py` builds both transcripts and the project they ran in. The
+`make-sessions.py` builds both transcripts and the project they ran in, plus a
+three-prompt `short` session that `calibrate.sh` ignores. The evaluate-session
+eval cases use all three, through `fixtures/sessions.sh`. The
 transcripts are generated rather than committed because the *shape* is the
 point — reading the generator tells you what each session demonstrates, where
 eight hundred lines of JSON would not.

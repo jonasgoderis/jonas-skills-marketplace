@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: house-style-new-diagram
+tags: [behaviour, drawio-conventions]
+description: >
+  A new diagram from services.md. Every edge in the written file must follow the
+  house style: attached by source and target only, line jumps, grey 2 px, block
+  arrow, and no shadow, sketch, glass, gradient or compression. Checked on the
+  file, not on what the reply claims.
+context:
+  scaffold_script: scaffold.sh

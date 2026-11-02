@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: drawio-add-a-box
+tags: [trigger, drawio-conventions]
+description: >
+  Editing an existing .drawio file. No mention of draw.io style or conventions,
+  only a file name and a small change.
+context:
+  scaffold_script: scaffold.sh

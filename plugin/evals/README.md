@@ -1,24 +1,31 @@
-# Eval suite for the release-version skill
+# Eval suite
 
-Twelve cases run by `claude plugin eval`. Eight ask whether the skill fires when
-it should and stays quiet when it should not; four drive it through an actual
-release and check what it does on the way. Two of those four are about the docs
-check: `stale-docs` must document a flag the README misses and leave a dated plan
-alone, and `internal-fix-no-docs` must not invent doc work for an internal change.
+Run by `claude plugin eval`. Every case is tagged with the skill it tests and
+with `trigger` (does the skill fire when it should, and stay quiet when it
+should not) or `behaviour` (once it fires, does it do the job right).
+
+| Skill | Trigger | Behaviour |
+| --- | --- | --- |
+| `release-version` | 8 | 4 |
+| `evaluate-session` | 8 | 4 |
+| `drawio-conventions` | 7 | 4 |
 
 ```sh
-scripts/eval.sh              # everything
-scripts/eval.sh trigger      # the eight trigger cases, ~$1 at one run each
-scripts/eval.sh behaviour    # the four behavioural cases
+scripts/eval.sh                     # everything
+scripts/eval.sh trigger             # every trigger case, ~$1 per skill at one run
+scripts/eval.sh behaviour           # every behavioural case
+scripts/eval.sh evaluate-session    # one skill's cases — any skill directory name
 scripts/eval.sh out-the-door --runs 1 --keep-temp
 ```
 
 Anything after the selector is passed through to `claude plugin eval`.
 
-## What to expect
+## release-version
+
+### What to expect
 
 A healthy run is **every case at 1.00 except `cut-a-release`, which lands at
-0.80–0.87**. That case carries the one judge-scored grader in the suite, and it
+0.80–0.87**. That case carries release-version's one judge-scored grader, and it
 disagrees with itself across runs on output a careful reader would accept. The
 deterministic graders on that case have never produced a false result;
 treat a judge failure as something to read, not something to fix. `eval.sh`
@@ -40,6 +47,71 @@ run after those fixes.
 The models are pinned in `scripts/eval.sh`. Unpinned, a model release moves the
 scores and a regression looks exactly like a model change.
 
+## evaluate-session
+
+The trigger negatives are near misses against the skill's neighbours: a code
+review (`review-the-branch`), a handover (`wrap-up-for-today`), grading
+something that is not a session (`grade-the-essays`), and "wasting context" said
+about a project file (`trim-claude-md`).
+
+The behavioural cases cannot produce a real grade. The sandbox's `claude` is
+missing or not logged in, so `evaluate.sh`'s grading call always fails there.
+Whether the grader bands a session correctly is what
+`session-calibration/calibrate.sh` measures, outside the sandbox. These cases
+check the skill around the grader instead: that it drives the scripts, that a
+skip or a failure reaches the user as one, that a rubric change gets a dry run,
+and that automatic grading is switched on through `enable-hook.sh` with the cost
+stated. `grading-call-fails` found the skill grading a session itself when the
+script failed; see its README.
+
+Pinned baseline, `claude-sonnet-5` with a `claude-haiku-4-5` judge, recorded
+2026-09-23:
+
+| Selection | Result | Cost |
+| --- | --- | --- |
+| `evaluate-session`, 3 runs | 12/12 at 1.00, 36/36 runs | $4.82, ~5 min |
+
+Some trigger runs end on the eight-turn cap after the skill has fired and
+started running scripts. That is expected and does not affect the score: the
+grader only asks whether the skill was called.
+
+## drawio-conventions
+
+The trigger positives cover a new diagram, a small edit to an existing
+`.drawio` file, the name diagrams.net instead of draw.io, and the symptom rule A
+exists for ("the arrow stays glued to the same spot") said without any draw.io
+words. The near misses are a Mermaid flowchart of the same flow
+(`mermaid-login-flow`), a question about a `.drawio` file that changes nothing
+(`drawio-read-only-question`), and rendering it to PNG (`drawio-export-png`).
+
+The behavioural cases check the written `.drawio` file, not what the reply
+claims about it. Each house-style rule is a `regex` grader on the file. A
+pattern such as `<mxCell\b(?=[^>]*\bedge="1")(?![^>]*jumpStyle=arc)[^>]*>`
+matches an edge tag that breaks the rule, whatever the attribute order, so
+`not_contains` means "no edge breaks it". Only the two "did the report say so"
+checks use an `llm` grader.
+
+First run, `claude-sonnet-5` with a `claude-haiku-4-5` judge, recorded
+2026-11-02:
+
+| Selection | Result | Cost |
+| --- | --- | --- |
+| `drawio-conventions`, 1 run | 10/11 at 1.00 | $1.79, ~4 min |
+| `edit-reports-old-edge` after the fix, 3 runs | 3/3 at 1.00 | $0.49 |
+| `drawio-conventions` after the fix and the spacing rules, 1 run | 11/11 at 1.00 | $1.92, ~3 min |
+
+The one failure was real. The checklist said "no edge has `exitX`" without
+exempting untouched edges, so the run silently fixed the fixture's old
+User -> API edge instead of reporting it. The checklist now covers only the
+cells the run added or changed.
+
+No case checks the spacing rules. A regex cannot measure the distance between
+shapes, so that needs a checker script.
+
+`drawio-export-png` ends on the eight-turn cap after trying to render. That is
+expected and does not affect the score: the grader only asks whether the skill
+was called.
+
 ## The fixtures
 
 The sandbox starts each case in an empty directory, so every case builds its
@@ -48,6 +120,16 @@ branch; `fixtures/release-repo.sh` adds a second version source, a passing test
 script and a bare `origin`, and its history mixes two features, a fix for a bug
 introduced on the same branch, and a README typo — so a run that turns four
 commits into four changelog bullets has not understood the job.
+
+`fixtures/sessions.sh`, for evaluate-session, carries three synthetic
+transcripts and the project they ran in. They are generated by
+`session-calibration/make-sessions.py`, which the sync script embeds through an
+`@EMBED` line, so the calibration and the evals grade the same sessions.
+
+`fixtures/drawio-repo.sh`, for drawio-conventions, is a small shop project with
+a services list, a login flow in prose and a `docs/flow.drawio`. In that diagram
+the User -> API edge has hand-drawn fixed connection points, so the edit cases
+can check that an untouched old edge is reported rather than silently changed.
 
 A case's `scaffold_script` has to name a file inside its own case directory, so
 these cannot be shared by reference. `scripts/sync-eval-fixtures.sh` writes the

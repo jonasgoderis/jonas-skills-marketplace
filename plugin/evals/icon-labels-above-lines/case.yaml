@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: icon-labels-above-lines
+tags: [behaviour, drawio-conventions]
+description: >
+  An architecture diagram with icons. Every icon label must have a white
+  background, and every icon must come after the edges in the file, so draw.io
+  draws it on top of the lines and its text is not crossed by an arrow.
+context:
+  scaffold_script: scaffold.sh

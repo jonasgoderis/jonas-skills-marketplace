@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: do-differently-next-time
+tags: [trigger, evaluate-session]
+description: >
+  Asks for advice rather than a grade. The description claims this phrasing; this
+  checks it.
+context:
+  scaffold_script: scaffold.sh

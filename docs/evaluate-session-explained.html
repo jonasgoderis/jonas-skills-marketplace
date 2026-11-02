@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evaluate-session, explained</title>
+<style>
+:root {
+  --bg: #fbfaf7; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6a66; --line: #e3e0d8;
+  --accent: #3b5bdb; --accent-soft: #e7ecfd;
+  --direct: #2f9e44; --direct-soft: #e3f4e6;
+  --indirect: #e8890c; --indirect-soft: #fdf0dc;
+  --structural: #7048e8; --structural-soft: #eee8fd;
+  --none: #868e96; --none-soft: #eceef0;
+  --bad: #c92a2a; --bad-soft: #fde8e8;
+  --code: #f3f1ec;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161615; --panel: #1f1f1d; --ink: #ecebe6; --muted: #a09e97; --line: #34332f;
+    --accent: #7c95f5; --accent-soft: #252c47;
+    --direct: #69db7c; --direct-soft: #1d3322;
+    --indirect: #ffb04a; --indirect-soft: #3a2d17;
+    --structural: #a98bfa; --structural-soft: #2c2446;
+    --none: #adb5bd; --none-soft: #2b2d30;
+    --bad: #ff8787; --bad-soft: #3d1f1f;
+    --code: #262623;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161615; --panel: #1f1f1d; --ink: #ecebe6; --muted: #a09e97; --line: #34332f;
+  --accent: #7c95f5; --accent-soft: #252c47;
+  --direct: #69db7c; --direct-soft: #1d3322;
+  --indirect: #ffb04a; --indirect-soft: #3a2d17;
+  --structural: #a98bfa; --structural-soft: #2c2446;
+  --none: #adb5bd; --none-soft: #2b2d30;
+  --bad: #ff8787; --bad-soft: #3d1f1f;
+  --code: #262623;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
+main { max-width: 920px; margin: 0 auto; padding: 32px 16px 80px; }
+h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 8px; }
+h2 { font-size: 1.35rem; margin: 56px 0 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+h3 { font-size: 1.05rem; margin: 24px 0 6px; }
+p.lead { color: var(--muted); font-size: 1.1rem; margin-top: 0; }
+.step { display: inline-block; font-size: .75rem; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--accent); }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; font-size: .88em; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin: 16px 0; }
+.note { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+.warn { border-left-color: var(--indirect); background: var(--indirect-soft); }
+.muted { color: var(--muted); }
+table { width: 100%; border-collapse: collapse; font-size: .94rem; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.scroll { overflow-x: auto; }
+
+/* analogy */
+.analogy { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.analogy .card { margin: 0; text-align: center; }
+.analogy .big { font-size: 1.9rem; }
+.analogy b { display: block; }
+.analogy small { color: var(--muted); display: block; line-height: 1.35; }
+@media (max-width: 680px) { .analogy { grid-template-columns: repeat(2, 1fr); } }
+
+/* pipeline */
+.pipe { display: flex; flex-direction: column; gap: 0; }
+.pipe .node { display: grid; grid-template-columns: 44px 1fr auto; gap: 14px; align-items: center;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+.pipe .num { width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: #fff;
+  display: grid; place-items: center; font-weight: 700; }
+.pipe .size { font-variant-numeric: tabular-nums; color: var(--muted); font-size: .85rem; text-align: right; white-space: nowrap; }
+.pipe .arrow { height: 26px; margin-left: 33px; border-left: 2px dashed var(--line); position: relative; }
+.pipe .arrow span { position: absolute; left: 14px; top: 3px; font-size: .8rem; color: var(--muted); }
+.pipe .gate { background: var(--bad-soft); border-color: transparent; }
+.pipe .gate .num { background: var(--bad); }
+@media (max-width: 560px) { .pipe .node { grid-template-columns: 36px 1fr; } .pipe .size { grid-column: 2; text-align: left; } }
+
+/* practice grid */
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: .88rem; margin: 10px 0 14px; }
+.legend span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; background: var(--c); }
+.bp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.bp { border-radius: 8px; padding: 8px 10px; background: var(--soft); border-left: 4px solid var(--c); font-size: .88rem; line-height: 1.3; }
+.bp b { display: block; font-size: .78rem; color: var(--c); }
+.d { --c: var(--direct); --soft: var(--direct-soft); }
+.i { --c: var(--indirect); --soft: var(--indirect-soft); }
+.s { --c: var(--structural); --soft: var(--structural-soft); }
+.n { --c: var(--none); --soft: var(--none-soft); }
+
+/* buckets */
+.buckets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.bucket { border-radius: 10px; padding: 14px; background: var(--panel); border: 1px solid var(--line); border-top: 5px solid var(--c); }
+.bucket h4 { margin: 0 0 4px; font-size: 1rem; }
+.bucket p { margin: 0; font-size: .88rem; color: var(--muted); line-height: 1.4; }
+.b-focus { --c: var(--bad); } .b-well { --c: var(--direct); } .b-na { --c: var(--none); } .b-un { --c: var(--indirect); }
+@media (max-width: 720px) { .buckets { grid-template-columns: repeat(2, 1fr); } }
+
+/* flow */
+.flow { display: flex; flex-direction: column; gap: 8px; }
+.q { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+.q .ask { flex: 1 1 260px; }
+.pill { font-size: .8rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--soft, var(--accent-soft)); color: var(--c, var(--accent)); white-space: nowrap; }
+.pill.focus { --c: var(--bad); --soft: var(--bad-soft); }
+.pill.well { --c: var(--direct); --soft: var(--direct-soft); }
+.pill.na { --c: var(--none); --soft: var(--none-soft); }
+.pill.un { --c: var(--indirect); --soft: var(--indirect-soft); }
+
+/* bands */
+.ladder { display: flex; flex-direction: column; gap: 6px; }
+.rung { display: grid; grid-template-columns: 60px 1fr; align-items: stretch; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: var(--panel); transition: outline .15s; }
+.rung .g { display: grid; place-items: center; font-weight: 800; font-size: 1.3rem; color: #fff; background: var(--c); }
+.rung .t { padding: 10px 14px; font-size: .94rem; }
+.rung.on { outline: 3px solid var(--accent); outline-offset: 2px; }
+.r-ap { --c: #2b8a3e; } .r-a { --c: #40c057; } .r-b { --c: #fab005; } .r-c { --c: #fd7e14; } .r-d { --c: #e03131; }
+
+.calc { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.calc label { display: block; margin: 8px 0; font-size: .94rem; }
+.calc input[type=range] { width: 100%; accent-color: var(--accent); }
+.result { font-size: 3.2rem; font-weight: 800; line-height: 1; }
+@media (max-width: 680px) { .calc { grid-template-columns: 1fr; } }
+
+/* calibration dots */
+.runs { display: flex; gap: 6px; flex-wrap: wrap; }
+.dot { width: 38px; height: 38px; border-radius: 8px; display: grid; place-items: center; font-weight: 800; color: #fff; background: var(--c); font-size: .95rem; }
+
+/* scorecard anatomy */
+.anat { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; }
+.paper { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.paper mark { background: var(--accent-soft); color: inherit; border-radius: 3px; padding: 0 2px; }
+.callouts ol { margin: 0; padding-left: 20px; }
+.callouts li { margin-bottom: 10px; }
+@media (max-width: 720px) { .anat { grid-template-columns: 1fr; } }
+
+dl.gloss { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; }
+dl.gloss dt { font-weight: 700; }
+dl.gloss dd { margin: 0; }
+@media (max-width: 560px) { dl.gloss { grid-template-columns: 1fr; } dl.gloss dd { margin-bottom: 8px; } }
+</style>
+</head>
+<body>
+<main>
+
+<span class="step">plugin/skills/evaluate-session</span>
+<h1>How the session grader works</h1>
+<p class="lead">A walkthrough of the rubric, the grades and the pipeline behind <code>/evaluate-session</code>, written for someone meeting rubrics for the first time.</p>
+
+<h2>1 · The whole idea in one picture</h2>
+<p>This is an <b>“LLM-as-judge”</b> setup: a model (Haiku) grades something against written rules. It helps to picture a teacher marking an exam:</p>
+<div class="analogy">
+  <div class="card"><div class="big">📄</div><b>The exam paper</b><small>The <b>digest</b>: a small JSON summary of one session</small></div>
+  <div class="card"><div class="big">📋</div><b>The marking scheme</b><small>The <b>rubric</b> plus the <b>catalogue</b> of 19 practices</small></div>
+  <div class="card"><div class="big">🧑‍🏫</div><b>The teacher</b><small>The <b>grader</b>: Haiku, given the prompt, rubric and digest</small></div>
+  <div class="card"><div class="big">🅰️</div><b>The mark</b><small>The <b>scorecard</b>: a band (A+ to D) and up to 2 focus items</small></div>
+</div>
+<div class="note">The thing being graded is <b>how you drove the session</b>: your prompts, how you scoped the work, how you checked it. It does <em>not</em> grade the code or the assistant's answers. A session that shipped working code after six vague prompts should grade badly. A carefully scoped session for work that turned out to be unnecessary should grade well.</div>
+
+<h3>Two kinds of “eval” live in this repo</h3>
+<div class="scroll"><table>
+<tr><th>What</th><th>Grades whom</th><th>Where</th></tr>
+<tr><td><b>evaluate-session</b></td><td><b>You</b>: how well you drove one session</td><td><code>plugin/skills/evaluate-session/</code></td></tr>
+<tr><td><b>Session calibration</b></td><td><b>The grader</b>: can it still tell a bad session from a good one?</td><td><code>plugin/evals/session-calibration/</code></td></tr>
+<tr><td>Trigger &amp; behaviour evals</td><td><b>Other skills</b>: does <code>release-version</code> fire, and does it behave?</td><td><code>plugin/evals/&lt;case&gt;/</code> (not covered here)</td></tr>
+</table></div>
+
+<h2>2 · The pipeline: what happens when a session is graded</h2>
+<p>Scripts do everything that must be identical on every run. The model is used for one step only: the judgement.</p>
+<div class="pipe">
+  <div class="node"><div class="num">1</div><div><b>Session transcript</b><br><span class="muted">Claude Code writes every session to <code>~/.claude/projects/&lt;project&gt;/&lt;id&gt;.jsonl</code></span></div><div class="size">~2.8 MB</div></div>
+  <div class="arrow"><span>triggered by /evaluate-session, or by the SessionEnd hook if switched on</span></div>
+  <div class="node"><div class="num">2</div><div><b><code>digest.py</code>: shrink it down to evidence</b><br><span class="muted">Keeps <b>your messages word for word</b>. Everything else becomes “shape”: tool counts, files touched, commits, test runs, context size. Assistant prose, tool output and file contents are dropped.</span></div><div class="size">~4 KB<br>127–659× smaller</div></div>
+  <div class="arrow"><span>two gates that stop the run</span></div>
+  <div class="node gate"><div class="num">!</div><div><b>Stop here if…</b><br><span class="muted">fewer than 5 prompts (a grade would be noise), or a message matches a secret pattern (nothing is sent). The reason is written to the log.</span></div><div class="size">exit 3 / exit 4</div></div>
+  <div class="arrow"><span></span></div>
+  <div class="node"><div class="num">3</div><div><b><code>evaluate.sh</code>: build the prompt</b><br><span class="muted">grader-prompt.md + best-practices.md + rubric.md + digest</span></div><div class="size">~6,000 tokens</div></div>
+  <div class="arrow"><span></span></div>
+  <div class="node"><div class="num">4</div><div><b>Haiku grades it</b> (<code>claude -p --restricted</code>)<br><span class="muted">Restricted, so it can only read and answer. The transcript is untrusted text, so the grader cannot run anything.</span></div><div class="size">&lt; 1 cent</div></div>
+  <div class="arrow"><span></span></div>
+  <div class="node"><div class="num">5</div><div><b>Scorecard + index row</b><br><span class="muted"><code>~/.claude/scorecards/&lt;date&gt;-&lt;time&gt;-&lt;project&gt;.md</code>, plus one row in <code>index.md</code>. Kept outside the repo on purpose: it is about a person.</span></div><div class="size">1 file + 1 row</div></div>
+</div>
+
+<h2>3 · The catalogue: 19 practices, and how visible each is</h2>
+<p><code>references/best-practices.md</code> defines BP-01 to BP-19. Each has an <b>observability</b> label, which tells the grader whether a transcript can show the practice at all. You need this to understand the rest of the page.</p>
+<div class="legend">
+  <span style="--c:var(--direct)">Direct: visible in your messages</span>
+  <span style="--c:var(--indirect)">Indirect: only from specific signals</span>
+  <span style="--c:var(--structural)">Structural: a fact about the project's files</span>
+  <span style="--c:var(--none)">None: happens outside the transcript</span>
+</div>
+<div class="bp-grid">
+  <div class="bp d"><b>BP-01</b>Watch the context, hand off before it rots</div>
+  <div class="bp s"><b>BP-02</b>Split project context across files</div>
+  <div class="bp d"><b>BP-03</b>Break big tasks into small, checkable steps</div>
+  <div class="bp d"><b>BP-04</b>One session, one subject</div>
+  <div class="bp d"><b>BP-05</b>Checkpoint knowledge to disk</div>
+  <div class="bp d"><b>BP-06</b>Be specific: goal, constraints, audience</div>
+  <div class="bp d"><b>BP-07</b>Show a concrete example</div>
+  <div class="bp d"><b>BP-08</b>Spell out the format</div>
+  <div class="bp d"><b>BP-09</b>Iterate; first answer is a draft</div>
+  <div class="bp d"><b>BP-10</b>Do not inject the answer</div>
+  <div class="bp d"><b>BP-11</b>Zoom out first, zoom in on request</div>
+  <div class="bp i"><b>BP-12</b>Keep the main thread clean</div>
+  <div class="bp i"><b>BP-13</b>Offload deterministic work to scripts</div>
+  <div class="bp s"><b>BP-14</b>Reference files, loaded on demand</div>
+  <div class="bp i"><b>BP-15</b>Verify; confident ≠ correct</div>
+  <div class="bp n"><b>BP-16</b>Read the actual diff</div>
+  <div class="bp i"><b>BP-17</b>Keep a human deciding real consequences</div>
+  <div class="bp d"><b>BP-18</b>Mind what you share</div>
+  <div class="bp s"><b>BP-19</b>Keep rules in separate files</div>
+</div>
+<p class="muted" style="font-size:.9rem">BP-18 is labelled Direct, but it can only show up as a failure: a session that leaked a secret never reaches the grader, because the secret gate stops it first.</p>
+
+<h2>4 · Four buckets: where each practice ends up</h2>
+<p>Each of the 19 practices lands in <b>exactly one</b> bucket on the scorecard. Seeing all 19 lets you check that the grade didn't depend on something the grader couldn't see.</p>
+<div class="buckets">
+  <div class="bucket b-focus"><h4>Focus on</h4><p>It went wrong <em>and it cost something</em>. Two at most.</p></div>
+  <div class="bucket b-well"><h4>Did well</h4><p>There is <em>positive</em> evidence you did it. “Nothing went wrong” doesn't count.</p></div>
+  <div class="bucket b-na"><h4>Not applicable</h4><p>The session gave no chance to use it (e.g. no big irreversible decision came up).</p></div>
+  <div class="bucket b-un"><h4>Unobserved</h4><p>The digest has no signal for it. This is <em>not</em> held against you.</p></div>
+</div>
+
+<h3>How the grader decides, per practice</h3>
+<div class="flow">
+  <div class="q"><span class="ask">Is it structural (BP-02, 14, 19)? Decide from the project's files. It can only be <b>Did well</b>, or a one-line <b>Standing note</b>, never a focus item.</span><span class="pill" style="--c:var(--structural);--soft:var(--structural-soft)">files, not you</span></div>
+  <div class="q"><span class="ask">Did the session give any occasion to use it?</span><span class="pill na">no → Not applicable</span></div>
+  <div class="q"><span class="ask">Does the digest carry any signal for it?</span><span class="pill un">no → Unobserved</span></div>
+  <div class="q"><span class="ask">Did its failure happen, costing something you can <b>quote</b> from your own message?</span><span class="pill focus">yes → Focus candidate</span></div>
+  <div class="q"><span class="ask">Is there positive evidence you did it on purpose?</span><span class="pill well">yes → Did well</span></div>
+</div>
+
+<div class="note"><b>The fairness rules.</b> Because the digest removes the assistant's words, your messages are the only text left to “blame”. The rubric works against that:
+<ul style="margin:6px 0 0">
+<li>Every finding cites a practice <em>and</em> a message number. “Prompts were vague” doesn't count as a finding. “BP-06, message 4” does.</li>
+<li>Rework is not automatically your fault. It counts against you only if the missing information was yours to give <em>and</em> the grader can say what you should have written.</li>
+<li>Anything the assistant chose (a design, a tool, a file layout) is never a finding against you.</li>
+</ul></div>
+
+<h2>5 · From evidence to a grade: the bands</h2>
+<p>The grade doesn't count how many practices you ticked. It counts <b>costs</b>. A cost is an episode the grader can point to where you had to repeat yourself, correct a misunderstanding your own wording caused, or ask for a redo that a clearer instruction would have avoided.</p>
+
+<div class="calc card">
+  <div>
+    <b>Try it: a band calculator</b>
+    <label>Countable costs in the session: <b id="nv">0</b>
+      <input id="n" type="range" min="0" max="7" value="0"></label>
+    <label><input id="small" type="checkbox"> The single cost was small, absorbed without a detour</label>
+    <label><input id="redir" type="checkbox"> One cost redirected the whole session</label>
+    <label><input id="lost" type="checkbox"> The session never established what it was doing</label>
+    <label><input id="two" type="checkbox" checked> At least two practices visibly exercised on purpose</label>
+    <div class="result" id="res">A+</div>
+    <div class="muted" id="why" style="font-size:.9rem"></div>
+  </div>
+  <div class="ladder">
+    <div class="rung r-ap" data-g="A+"><div class="g">A+</div><div class="t">No costs <em>and</em> at least two practices clearly used on purpose. Should be rare.</div></div>
+    <div class="rung r-a" data-g="A"><div class="g">A</div><div class="t">No costs, or one so small the session absorbed it without a detour.</div></div>
+    <div class="rung r-b" data-g="B"><div class="g">B</div><div class="t">One or two costs.</div></div>
+    <div class="rung r-c" data-g="C"><div class="g">C</div><div class="t">Three or four costs, <em>or</em> one that redirected the whole session.</div></div>
+    <div class="rung r-d" data-g="D"><div class="g">D</div><div class="t">Five or more, <em>or</em> the session never established what it was doing.</div></div>
+  </div>
+</div>
+<p><b>Why only five bands?</b> A judge choosing between 11 grades won't give the same answer twice on the same evidence. A coarse grade that stays the same from run to run is more useful than a precise one that jumps around. <b>Tie-break:</b> if the evidence fits two neighbouring bands, the grader picks the higher one. A harsh grade gets ignored, and that costs more than a generous one.</p>
+
+<h2>6 · Anatomy of a scorecard</h2>
+<div class="anat">
+<div class="paper"><mark>①</mark># Session scorecard — demo-project, 2026-09-23
+
+<mark>②</mark>**Grade: C**
+
+<mark>③</mark>Five costs traceable to the user's own wording; unclear scope set off most of them.
+
+## Focus on
+<mark>④</mark>- **BP-06 — Be specific** — message 3 relied on a convention that was never stated, and the rate-limiter work was undone.
+- **BP-10 — Do not inject the answer** — message 6 declared a cache problem; message 7 retracted it after a detour.
+
+## Did well
+<mark>⑤</mark>BP-02, BP-19
+
+## Not applicable
+<mark>⑥</mark>BP-07, BP-08, BP-17, …
+
+## Unobserved
+BP-12, BP-13, BP-16, …
+
+<mark>⑦</mark>&lt;!-- session: 1a2b… --&gt;</div>
+<div class="callouts"><ol>
+<li><b>Header</b>: project and date.</li>
+<li><b>Band</b>, A+ to D, decided by counting costs.</li>
+<li><b>One sentence</b> saying what shaped the grade most.</li>
+<li><b>At most two focus items</b>: the two biggest <em>costs</em>, each on a different episode, each citing a message number. One or zero is fine.</li>
+<li><b>Did well</b>: identifiers only, no commentary. This is recognition, not a second essay.</li>
+<li><b>Not applicable / Unobserved</b>: listed so you can see what the grade <em>didn't</em> rest on.</li>
+<li>A hidden session ID, so a tool can link the scorecard back to the transcript.</li>
+</ol>
+<p class="muted" style="font-size:.88rem">Illustrative example based on the synthetic “bad” calibration session, not a real one.</p></div>
+</div>
+
+<h2>7 · Grading the grader: calibration</h2>
+<p>The rubric pushes toward generous grades, and a lot of practices can be “unobserved”. Together those create a risk: <b>everything quietly lands at A</b>, and the tool stops measuring anything. Real sessions can't catch this, because a run of A grades from someone who already works well looks the same whether the rubric works or not.</p>
+<p>The fix is a <b>negative control</b>: a session built to go badly, with known faults. If the grader can't mark <em>that</em> down, it's broken. <code>make-sessions.py</code> generates two synthetic sessions in the same healthy project, so the only difference between them is how the work was asked for:</p>
+
+<div class="scroll"><table>
+<tr><th>“bad” session: message</th><th>Planted cost</th></tr>
+<tr><td>3</td><td>Relies on a convention that was never stated, so the rate-limiter work gets undone</td></tr>
+<tr><td>5</td><td>A reversal that throws away the CSV export just finished</td></tr>
+<tr><td>7</td><td>The diagnosis you injected at message 6 (“definitely caching”) was wrong</td></tr>
+<tr><td>10</td><td>Approved at message 9 without looking at what was approved</td></tr>
+<tr><td>14</td><td>An instruction ambiguous enough to be read the other way</td></tr>
+</table></div>
+
+<h3>Results (Haiku, measured 2026-09-23 against the current rubric)</h3>
+<div class="card">
+  <p style="margin:0 0 6px"><b>“bad”</b>: expected C or D</p>
+  <div class="runs"><div class="dot r-c">C</div><div class="dot r-c">C</div><div class="dot r-c">C</div></div>
+  <p style="margin:14px 0 6px"><b>“ordinary”</b>: expected A+, A or B</p>
+  <div class="runs"><div class="dot r-ap">A+</div><div class="dot r-ap">A+</div><div class="dot r-ap">A+</div></div>
+  <p class="muted" style="margin:14px 0 0;font-size:.9rem">Earlier rounds: “bad” 6/6 C, then D C C C after a template fix. The band stays stable. The <em>second</em> focus item changes from run to run, which is expected: there are five real costs and only two slots.</p>
+</div>
+<div class="note warn"><b>Rule of thumb:</b> editing <code>rubric.md</code>, <code>best-practices.md</code> or <code>grader-prompt.md</code> makes these numbers stale. Rerun <code>plugin/evals/session-calibration/calibrate.sh</code>. It exits non-zero if “bad” grades B or better.</div>
+
+<h2>8 · Using it</h2>
+<div class="scroll"><table>
+<tr><th>You want to…</th><th>Run</th></tr>
+<tr><td>Grade a session now</td><td><code>/evaluate-session</code></td></tr>
+<tr><td>See the prompt and token cost without calling the model</td><td><code>evaluate.sh --transcript &lt;file&gt; --dry-run</code></td></tr>
+<tr><td>Grade every session automatically</td><td><code>enable-hook.sh --on</code> (about 6k tokens per session on Haiku)</td></tr>
+<tr><td>Check whether the hook ran, and why it skipped</td><td><code>enable-hook.sh --status</code></td></tr>
+<tr><td>See whether you are improving over time</td><td>Read <code>~/.claude/scorecards/index.md</code>. One scorecard is a mood; the table shows the trend.</td></tr>
+<tr><td>Check the grader still discriminates</td><td><code>plugin/evals/session-calibration/calibrate.sh</code></td></tr>
+</table></div>
+
+<h2>Glossary</h2>
+<dl class="gloss">
+<dt>Rubric</dt><dd>The written rules for turning evidence into a grade. Here: <code>references/rubric.md</code>.</dd>
+<dt>Catalogue</dt><dd>The list of practices being assessed (BP-01 to BP-19): <code>references/best-practices.md</code>.</dd>
+<dt>Grader / judge</dt><dd>The model that applies the rubric. Here: Haiku, via <code>claude -p</code>.</dd>
+<dt>Band</dt><dd>A coarse grade (A+, A, B, C, D). Coarse on purpose, so it stays the same from run to run.</dd>
+<dt>Cost</dt><dd>An episode you can point to where your wording led to a repeat, a correction or a redo.</dd>
+<dt>Digest</dt><dd>The small JSON evidence file: your messages verbatim, everything else reduced to counts.</dd>
+<dt>Observability</dt><dd>Whether a transcript can show a practice at all: direct, indirect, structural or none.</dd>
+<dt>Calibration</dt><dd>Checking the grader against sessions whose right answer you already know.</dd>
+<dt>Negative control</dt><dd>A deliberately bad case. If the grader passes it, the grader is broken.</dd>
+</dl>
+
+</main>
+<script>
+(function () {
+  var n = document.getElementById('n'), nv = document.getElementById('nv');
+  var small = document.getElementById('small'), redir = document.getElementById('redir');
+  var lost = document.getElementById('lost'), two = document.getElementById('two');
+  var res = document.getElementById('res'), why = document.getElementById('why');
+  var rungs = document.querySelectorAll('.rung');
+  function band() {
+    var c = +n.value;
+    if (lost.checked) return ['D', 'The session never established what it was doing.'];
+    if (c >= 5) return ['D', 'Five or more costs.'];
+    if (redir.checked && c >= 1) return ['C', 'One cost redirected the whole session.'];
+    if (c >= 3) return ['C', 'Three or four costs.'];
+    if (c === 1 && small.checked) return ['A', 'One small cost, absorbed without a detour.'];
+    if (c >= 1) return ['B', c === 1 ? 'One cost.' : 'Two costs.'];
+    if (two.checked) return ['A+', 'No costs, and practices clearly exercised on purpose.'];
+    return ['A', 'No costs.'];
+  }
+  function update() {
+    nv.textContent = n.value;
+    small.disabled = +n.value !== 1; if (small.disabled) small.checked = false;
+    redir.disabled = +n.value === 0; if (redir.disabled) redir.checked = false;
+    var b = band();
+    res.textContent = b[0]; why.textContent = b[1];
+    rungs.forEach(function (r) { r.classList.toggle('on', r.dataset.g === b[0]); });
+  }
+  [n, small, redir, lost, two].forEach(function (el) { el.addEventListener('input', update); });
+  update();
+})();
+</script>
+</body>
+</html>

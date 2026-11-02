@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: trim-claude-md
+tags: [trigger, evaluate-session]
+description: >
+  Near miss: "wasting context" is in the description, but here it is about a
+  project file, not how a session was driven.
+context:
+  scaffold_script: scaffold.sh

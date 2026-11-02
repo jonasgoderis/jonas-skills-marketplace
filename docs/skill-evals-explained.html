@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skill evals, explained</title>
+<style>
+:root {
+  --bg: #fbfaf7; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6a66; --line: #e3e0d8;
+  --accent: #3b5bdb; --accent-soft: #e7ecfd;
+  --pass: #2f9e44; --pass-soft: #e3f4e6;
+  --fail: #c92a2a; --fail-soft: #fde8e8;
+  --mid: #e8890c; --mid-soft: #fdf0dc;
+  --judge: #7048e8; --judge-soft: #eee8fd;
+  --code: #f3f1ec;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161615; --panel: #1f1f1d; --ink: #ecebe6; --muted: #a09e97; --line: #34332f;
+    --accent: #7c95f5; --accent-soft: #252c47;
+    --pass: #69db7c; --pass-soft: #1d3322;
+    --fail: #ff8787; --fail-soft: #3d1f1f;
+    --mid: #ffb04a; --mid-soft: #3a2d17;
+    --judge: #a98bfa; --judge-soft: #2c2446;
+    --code: #262623;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161615; --panel: #1f1f1d; --ink: #ecebe6; --muted: #a09e97; --line: #34332f;
+  --accent: #7c95f5; --accent-soft: #252c47;
+  --pass: #69db7c; --pass-soft: #1d3322;
+  --fail: #ff8787; --fail-soft: #3d1f1f;
+  --mid: #ffb04a; --mid-soft: #3a2d17;
+  --judge: #a98bfa; --judge-soft: #2c2446;
+  --code: #262623;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
+main { max-width: 940px; margin: 0 auto; padding: 32px 16px 80px; }
+h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 8px; }
+h2 { font-size: 1.35rem; margin: 56px 0 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+h3 { font-size: 1.05rem; margin: 24px 0 6px; }
+p.lead { color: var(--muted); font-size: 1.1rem; margin-top: 0; }
+.kicker { font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; font-size: .88em; }
+pre { background: var(--code); padding: 12px 14px; border-radius: 8px; overflow-x: auto; font-size: .82rem; line-height: 1.5; margin: 8px 0; }
+pre code { background: none; padding: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin: 16px 0; }
+.note { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+.warn { border-left-color: var(--mid); background: var(--mid-soft); }
+.muted { color: var(--muted); }
+.small { font-size: .88rem; }
+table { width: 100%; border-collapse: collapse; font-size: .93rem; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: .76rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.scroll { overflow-x: auto; }
+
+/* flow */
+.flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; align-items: stretch; }
+.flow .box { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; position: relative; }
+.flow .box b { display: block; margin-bottom: 2px; }
+.flow .box span { font-size: .84rem; color: var(--muted); line-height: 1.35; display: block; }
+.flow .box .n { width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: .85rem; margin-bottom: 8px; }
+.flow .box:not(:last-child)::after { content: "→"; position: absolute; right: -9px; top: 50%; transform: translateY(-50%); color: var(--muted); font-weight: 700; background: var(--bg); line-height: 1; }
+@media (max-width: 760px) { .flow { grid-template-columns: 1fr; } .flow .box:not(:last-child)::after { content: "↓"; right: auto; left: 20px; top: auto; bottom: -14px; transform: none; } }
+
+/* case anatomy */
+.anat { display: grid; grid-template-columns: 1fr 1.2fr; gap: 16px; }
+.tree { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .84rem; line-height: 1.9; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.tree .f { cursor: pointer; border-radius: 4px; padding: 1px 4px; }
+.tree .f:hover, .tree .f.on { background: var(--accent-soft); color: var(--accent); }
+.tree .c { color: var(--muted); }
+.detail { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.detail h4 { margin: 0 0 4px; }
+@media (max-width: 720px) { .anat { grid-template-columns: 1fr; } }
+
+/* cases grid */
+.cases { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+.case { border-radius: 10px; padding: 10px 12px; background: var(--soft); border-left: 4px solid var(--c); font-size: .88rem; line-height: 1.35; }
+.case b { display: block; font-size: .8rem; color: var(--c); margin-bottom: 2px; }
+.case em { display: block; margin-top: 4px; font-style: normal; font-size: .78rem; color: var(--muted); }
+.fire { --c: var(--pass); --soft: var(--pass-soft); }
+.silent { --c: var(--fail); --soft: var(--fail-soft); }
+.beh { --c: var(--accent); --soft: var(--accent-soft); }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: .88rem; margin: 10px 0 12px; }
+.legend span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; background: var(--c); }
+
+/* grader types */
+.gtypes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.gtype { background: var(--panel); border: 1px solid var(--line); border-top: 5px solid var(--c); border-radius: 10px; padding: 14px; }
+.gtype h4 { margin: 0 0 2px; }
+.gtype .tag { font-size: .74rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--c); }
+.gtype p { font-size: .88rem; margin: 6px 0; }
+.g-tool { --c: var(--pass); } .g-regex { --c: var(--accent); } .g-llm { --c: var(--judge); }
+@media (max-width: 760px) { .gtypes { grid-template-columns: 1fr; } }
+
+/* scorer */
+.scorer { display: grid; grid-template-columns: 1.3fr 1fr; gap: 18px; }
+.grow { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); margin-bottom: 6px; cursor: pointer; user-select: none; background: var(--panel); }
+.grow input { accent-color: var(--pass); width: 18px; height: 18px; }
+.grow .gn { flex: 1; font-size: .9rem; }
+.grow .gt { font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--code); color: var(--muted); }
+.grow .gt.llm { background: var(--judge-soft); color: var(--judge); }
+.grow.off { background: var(--fail-soft); border-color: transparent; }
+.meter { height: 18px; border-radius: 9px; background: var(--code); position: relative; overflow: visible; margin: 12px 0 26px; }
+.meter .fill { height: 100%; border-radius: 9px; background: var(--pass); transition: width .2s, background .2s; }
+.meter .th { position: absolute; top: -6px; bottom: -6px; width: 2px; background: var(--ink); left: 80%; }
+.meter .th::after { content: "threshold 0.8"; position: absolute; top: 30px; left: -40px; font-size: .74rem; color: var(--muted); white-space: nowrap; }
+.score { font-size: 3rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.verdict { font-weight: 700; font-size: 1.05rem; }
+@media (max-width: 720px) { .scorer { grid-template-columns: 1fr; } }
+
+/* history */
+.hist { display: grid; grid-template-columns: 170px repeat(var(--cols), minmax(46px, 1fr)); gap: 4px; align-items: center; min-width: 560px; }
+.hist .h { font-size: .72rem; color: var(--muted); text-align: center; line-height: 1.2; }
+.hist .l { font-size: .85rem; font-family: ui-monospace, Menlo, monospace; }
+.cell { height: 34px; border-radius: 6px; display: grid; place-items: center; font-size: .78rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.c1 { background: var(--pass-soft); color: var(--pass); }
+.c0 { background: var(--fail-soft); color: var(--fail); }
+.cm { background: var(--mid-soft); color: var(--mid); }
+.cx { background: transparent; color: var(--muted); font-weight: 400; }
+.events { margin-top: 10px; font-size: .88rem; }
+.events li { margin-bottom: 6px; }
+
+/* footguns */
+.guns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.gun { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.gun h4 { margin: 0 0 4px; font-size: .96rem; }
+.gun .eff { display: inline-block; font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; margin-bottom: 6px; }
+.eff.p { background: var(--pass-soft); color: var(--pass); } .eff.f { background: var(--fail-soft); color: var(--fail); }
+.gun p { margin: 4px 0; font-size: .88rem; }
+@media (max-width: 720px) { .guns { grid-template-columns: 1fr; } }
+
+dl.gloss { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; }
+dl.gloss dt { font-weight: 700; }
+dl.gloss dd { margin: 0; }
+@media (max-width: 560px) { dl.gloss { grid-template-columns: 1fr; } dl.gloss dd { margin-bottom: 8px; } }
+</style>
+</head>
+<body>
+<main>
+
+<span class="kicker">plugin/evals · claude plugin eval</span>
+<h1>How the skill evals and graders work</h1>
+<p class="lead">How this repo checks that a skill <em>fires</em> when it should, <em>behaves</em> correctly once it does, and whether a change made it better or worse. Written for someone meeting evals for the first time.</p>
+
+<h2>1 · The idea in one sentence</h2>
+<p>An <b>eval</b> is an automated test for a skill. You write a prompt and a small fake world, let Claude handle the prompt with the plugin installed, and then <b>graders</b> check what happened. Each grader is a small yes/no question, such as “did it open a pull request?” or “did it read the commits?”. The share of graders that pass is the <b>score</b>.</p>
+
+<div class="flow">
+  <div class="box"><div class="n">1</div><b>Scaffold</b><span><code>scaffold.sh</code> builds a throwaway git repo in an empty sandbox</span></div>
+  <div class="box"><div class="n">2</div><b>Prompt</b><span><code>prompt.md</code> is sent as if you had typed it</span></div>
+  <div class="box"><div class="n">3</div><b>Run</b><span>Claude (Sonnet 5, pinned) works on it with the plugin loaded. Every tool call is recorded in a <b>trace</b></span></div>
+  <div class="box"><div class="n">4</div><b>Grade</b><span>Each file in <code>graders/</code> gives pass or fail</span></div>
+  <div class="box"><div class="n">5</div><b>Score</b><span>passed ÷ total per run, averaged over runs, compared with <b>0.8</b></span></div>
+</div>
+
+<div class="note">All of this runs through Claude Code's built-in <code>claude plugin eval</code> command. The repo's <code>scripts/eval.sh</code> wraps it with the settings that matter: pinned models, threshold, cost cap, and <code>--no-publish</code> so the report is never uploaded. Right now the suite covers <b>one skill only: <code>release-version</code></b>.</div>
+
+<h2>2 · Anatomy of a case</h2>
+<p>Each case is one folder under <code>plugin/evals/</code>. Click a file to see what it does. The example is <code>cut-a-release</code>.</p>
+<div class="anat">
+  <div class="tree" id="tree">
+    <div>cut-a-release/</div>
+    <div>├─ <span class="f" data-k="case">case.yaml</span> <span class="c"># name, tags</span></div>
+    <div>├─ <span class="f" data-k="prompt">prompt.md</span> <span class="c"># what "you" say</span></div>
+    <div>├─ <span class="f" data-k="scaffold">scaffold.sh</span> <span class="c"># builds the world</span></div>
+    <div>├─ <span class="f" data-k="readme">README.md</span> <span class="c"># why it asserts what it does</span></div>
+    <div>└─ graders/</div>
+    <div>&nbsp;&nbsp;&nbsp;├─ <span class="f" data-k="ran">ran-check.md</span></div>
+    <div>&nbsp;&nbsp;&nbsp;├─ <span class="f" data-k="log">read-the-commits.md</span></div>
+    <div>&nbsp;&nbsp;&nbsp;├─ <span class="f" data-k="pr">no-pr-opened.md</span></div>
+    <div>&nbsp;&nbsp;&nbsp;├─ <span class="f" data-k="ver">version-not-hand-edited.md</span></div>
+    <div>&nbsp;&nbsp;&nbsp;├─ <span class="f" data-k="prog">shows-progress.md</span></div>
+    <div>&nbsp;&nbsp;&nbsp;└─ <span class="f" data-k="llm">changelog-reads-the-diff.md</span></div>
+  </div>
+  <div class="detail" id="detail"></div>
+</div>
+
+<h2>3 · Two kinds of case</h2>
+<div class="legend">
+  <span style="--c:var(--pass)">Trigger · must fire</span>
+  <span style="--c:var(--fail)">Trigger · must stay silent</span>
+  <span style="--c:var(--accent)">Behaviour · does the right things</span>
+</div>
+
+<h3>Trigger cases (8): does the skill activate?</h3>
+<p>A skill's <code>description</code> in its frontmatter is what decides whether Claude uses it. Trigger cases test that description directly. Each has <b>one grader</b>: was the <code>Skill</code> tool called with <code>release-version</code>? The <b>silent</b> cases are the more interesting ones. They are near misses that <em>sound</em> like a release but aren't, so they catch a description that is too aggressive.</p>
+<div class="cases">
+  <div class="case fire"><b>ready-to-ship</b>“I think we're ready to ship this.”</div>
+  <div class="case fire"><b>next-version</b>“What should the next version be?”</div>
+  <div class="case fire"><b>out-the-door</b>“The work's done — get it out the door.”<em>never says “release”</em></div>
+  <div class="case fire"><b>write-the-changelog</b>“Write the changelog for this branch.”<em>looks like a one-step job</em></div>
+  <div class="case silent"><b>bump-a-dependency</b>“Bump the lodash dependency to the latest.”<em>“bump” is in the description</em></div>
+  <div class="case silent"><b>open-a-pr</b>“Create a PR for this work.”<em>closest near miss</em></div>
+  <div class="case silent"><b>what-changed</b>“What changed since Friday?”</div>
+  <div class="case silent"><b>node-version-question</b>“What Node version does this project need?”<em>“version”, but not that kind</em></div>
+</div>
+
+<h3>Behaviour cases (4): once it fires, does it do the job right?</h3>
+<p>These run a real release inside the fake repo and check several things along the way. The fixture's history is deliberately messy: two features, a fix for a bug introduced on the same branch, and a README typo. A run that turns four commits into four changelog lines hasn't understood the job.</p>
+<div class="cases">
+  <div class="case beh"><b>cut-a-release · 6 graders</b>Checks first, reads the commits, proposes notes, stops for approval, never hand-edits the version.</div>
+  <div class="case beh"><b>no-test-command · 2 graders</b>No tests exist. It must say so and let you decide, not quietly skip them.</div>
+  <div class="case beh"><b>stale-docs · 5 graders</b>README misses a new <code>--shout</code> flag. It must document it and leave a dated plan untouched.</div>
+  <div class="case beh"><b>internal-fix-no-docs · 5 graders</b>Internal change only. It must <em>not</em> invent doc work.</div>
+</div>
+
+<h2>4 · The three kinds of grader</h2>
+<p>A grader is a markdown file. Its frontmatter says which check to run. Two kinds are <b>deterministic</b>, meaning code decides and gives the same verdict every time. One is a <b>judge</b>, meaning a model decides.</p>
+<div class="gtypes">
+  <div class="gtype g-tool"><span class="tag">deterministic</span><h4>tool_used</h4>
+    <p>Counts tool calls in the trace that match a pattern. It sees only what Claude <em>did</em>, not what it said.</p>
+<pre><code>type: tool_used
+tool: Bash
+input_match: 'git\s+log'
+min: 1</code></pre>
+    <p class="muted small">“It ran <code>git log</code> at least once.” For “must never happen”, use <code>min: 0, max: 0</code>.</p></div>
+  <div class="gtype g-regex"><span class="tag">deterministic</span><h4>regex</h4>
+    <p>Looks for a pattern in a <b>target</b>: the final message, the whole trace, or a <b>file</b> left in the workspace.</p>
+<pre><code>type: regex
+target:
+  source: file
+  path: gh.log
+pattern: 'pr create'
+match: not_contains</code></pre>
+    <p class="muted small">“The fake <code>gh</code> never logged <code>pr create</code>, so no PR was opened.”</p></div>
+  <div class="gtype g-llm"><span class="tag">judge · Haiku 4.5</span><h4>llm</h4>
+    <p>A second model reads the output and applies a written <b>PASS if… / FAIL if…</b> rule. Use it for things code can't check, like “do these release notes reflect the diff?”</p>
+<pre><code>type: llm
+focus: last_message
+---
+PASS if both features appear
+as new, and the README typo
+is not an entry…</code></pre>
+    <p class="muted small">Flexible, but noisy: it can disagree with itself on the same output.</p></div>
+</div>
+
+<div class="note">This is where the “rubric” lives in this suite. Each <code>llm</code> grader's body <em>is</em> a small rubric: explicit pass conditions, explicit fail conditions, and a list of what to ignore (“do not judge wording, formatting or section names”). The more precise that text, the less the judge wanders.</div>
+
+<h2>5 · How a score is calculated</h2>
+<p>Each grader has weight 1. <b>Run score = graders passed ÷ graders total.</b> A case normally runs 3 times, and its score is the average of those runs. The suite passes if cases reach the <b>0.8 threshold</b>. Toggle the graders of <code>cut-a-release</code> below:</p>
+<div class="card scorer">
+  <div id="glist"></div>
+  <div>
+    <div class="muted small">score for this run</div>
+    <div class="score" id="sc">1.00</div>
+    <div class="meter"><div class="fill" id="fill"></div><div class="th"></div></div>
+    <div class="verdict" id="vd"></div>
+    <p class="muted small" id="vx"></p>
+  </div>
+</div>
+<p><b>Why 0.8 and not 1.0?</b> On <code>cut-a-release</code>, the five deterministic graders have never given a false result. The judge sometimes fails notes a careful reader would accept. One judge miss gives 5/6 = 0.83. With a 1.0 threshold, a healthy suite would look broken, so 0.8 allows exactly that one noisy judge miss. The rule that goes with it: <b>when the judge fails a run, read the output before believing the verdict.</b></p>
+
+<h2>6 · “Did it get better?” The run history</h2>
+<p>Every run writes <code>plugin/evals/results/&lt;timestamp&gt;/</code> with an <code>aggregate-result.json</code> and an HTML report. That folder is gitignored, so it only exists on your machine. There are 39 runs in it so far. Below are the ones that tell the story. Each cell is a case's average score for that run.</p>
+
+<h3>Trigger suite: tuning the description</h3>
+<div class="card scroll">
+  <div class="hist" style="--cols:5">
+    <div></div>
+    <div class="h">22 Sep<br>07:54</div><div class="h">22 Sep<br>08:26</div><div class="h">22 Sep<br>08:31</div><div class="h">22 Sep<br>09:14</div><div class="h">23 Sep<br>12:55</div>
+    <div class="l">ready-to-ship</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div>
+    <div class="l">next-version</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div>
+    <div class="l">out-the-door</div><div class="cell c1">1.0</div><div class="cell c0">0.0</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div>
+    <div class="l">write-the-changelog</div><div class="cell c0">0.0</div><div class="cell c0">0.0</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div>
+    <div class="l">bump-a-dependency</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div>
+    <div class="l">open-a-pr</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div>
+    <div class="l">what-changed</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div>
+    <div class="l">node-version-question</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div><div class="cell c1">1.0</div>
+  </div>
+  <ol class="events">
+    <li><b>07:54:</b> first run, 7/8. <code>write-the-changelog</code> never fired. Claude ran <code>git log</code> and wrote the changelog by hand.</li>
+    <li><b>08:26</b> (3 runs each): <code>out-the-door</code> <em>also</em> fails. The fake repo gained an <code>origin</code>, and with somewhere to push, Claude pushed and opened a PR itself instead of using the skill. The earlier pass had been measuring the fixture, not the skill.</li>
+    <li><b>08:31:</b> description rewritten. Instead of more keywords, it now gives the <em>reason</em>: these requests look like one-step jobs, and doing them by hand skips the version sync, tests and approval. Result: <b>8/8, 24 of 24 runs</b>. The silent cases stayed silent.</li>
+    <li><b>09:14:</b> models pinned to Sonnet 5 and Haiku 4.5, then re-baselined. <b>23 Sep:</b> re-run after the docs-check change. Still 8/8, so no regression.</li>
+  </ol>
+</div>
+
+<h3>Behaviour suite: finding real bugs, and bugs in the graders</h3>
+<div class="card scroll">
+  <div class="hist" style="--cols:7">
+    <div></div>
+    <div class="h">22 Sep<br>08:48</div><div class="h">22 Sep<br>08:54–55</div><div class="h">22 Sep<br>08:59</div><div class="h">22 Sep<br>09:15</div><div class="h">23 Sep<br>12:47</div><div class="h">23 Sep<br>12:51</div><div class="h">23 Sep<br>12:56–57</div>
+    <div class="l">cut-a-release</div><div class="cell cm">0.67</div><div class="cell c1">0.93</div><div class="cell c1">0.80</div><div class="cell c1">0.87</div><div class="cell c1">0.83</div><div class="cell c1">1.00</div><div class="cell cx">–</div>
+    <div class="l">no-test-command</div><div class="cell cx">–</div><div class="cell cm">0.50</div><div class="cell c1">1.00</div><div class="cell c1">1.00</div><div class="cell c1">1.00</div><div class="cell c1">0.83</div><div class="cell c1">1.00</div>
+    <div class="l">stale-docs</div><div class="cell cx">–</div><div class="cell cx">–</div><div class="cell cx">–</div><div class="cell cx">–</div><div class="cell c1">0.80</div><div class="cell c1">0.87</div><div class="cell c1">1.00</div>
+    <div class="l">internal-fix-no-docs</div><div class="cell cx">–</div><div class="cell cx">–</div><div class="cell cx">–</div><div class="cell cx">–</div><div class="cell c1">1.00</div><div class="cell c1">1.00</div><div class="cell cx">–</div>
+  </div>
+  <ol class="events">
+    <li><b>cut-a-release</b> moves between 0.67 and 1.00 on nearly the same skill. That is the judge grader being noisy. Early on, though, the judge caught a <b>real skill bug</b>: the notes described a new feature as if it already existed. <code>SKILL.md</code> was fixed.</li>
+    <li><b>no-test-command</b> sat at 0.50 because of what the plan notes record as a <b>grader bug</b>, not a skill bug. A <code>regex</code> on the trace failed a run that said <em>“I'd rather not just pass <code>--no-test</code>”</em>, which was the right answer. Switching to <code>tool_used</code> fixed it.</li>
+    <li><b>23 Sep 12:51:</b> the new docs-check caught two real faults (a README typo written up as a changelog line, and doc edits made while a question was still open) plus one grader that passed on the skill's own text. After the fixes, all 1.00.</li>
+    <li>Running the evals also turned up a <b>bug in the script itself</b>: <code>version.sh</code> used bare <code>mktemp</code>, which on macOS writes outside the sandbox. It now uses a helper, and a test pins it.</li>
+  </ol>
+</div>
+
+<div class="note">Reading these runs: a failing eval means one of <b>three things</b>. The <b>skill</b> is wrong (fix <code>SKILL.md</code>), the <b>grader</b> is wrong (fix the grader), or the <b>fixture</b> is wrong (fix <code>fixtures/</code>). Every one of those happened here. So the first move is always to open the trace and read what Claude actually did.</div>
+
+<h2>7 · Four ways a grader silently measures nothing</h2>
+<p>Each of these cost a run to discover. They're recorded in <code>plugin/evals/README.md</code>.</p>
+<div class="guns">
+  <div class="gun"><span class="eff p">always passes</span><h4>Forgetting <code>arm: both</code> on a “must not fire” case</h4><p>The eval tool treats a <code>Skill</code> check as “did the plugin fire” and drops it from the score. The negative case passes while asserting nothing.</p></div>
+  <div class="gun"><span class="eff f">always fails</span><h4>Only writing <code>max: 0</code></h4><p><code>min</code> defaults to 1, so the grader expects “between 1 and 0 calls”, which is impossible. Always write both <code>min: 0</code> and <code>max: 0</code>.</p></div>
+  <div class="gun"><span class="eff f">never matches</span><h4><code>input_match</code> sees JSON, not the command</h4><p>The command arrives serialised as <code>version.sh\" check</code>, so <code>version\.sh\s+check</code> misses. Put <code>\S*</code> in between.</p></div>
+  <div class="gun"><span class="eff f">wrong verdict</span><h4><code>regex</code> on the trace can't tell use from mention</h4><p>“Don't use <code>--no-test</code>” matches just as well as using it. When the claim is “it did not <em>do</em> X”, use <code>tool_used</code>.</p></div>
+</div>
+
+<h2>8 · Honest limits</h2>
+<div class="scroll"><table>
+<tr><th>Limit</th><th>What it means</th></tr>
+<tr><td><b>The test is also the target</b></td><td>The description was tuned against these same 8 trigger cases. 8/8 shows the two gaps closed without breaking the negatives, but not that the description works for phrasings it has never seen. New, <em>held-out</em> phrasings would be the next honest test.</td></tr>
+<tr><td><b>The judge is noisy</b></td><td>The same output can pass one run and fail the next. That's why the threshold is 0.8, and why a judge failure is read, not trusted.</td></tr>
+<tr><td><b>Models are pinned</b></td><td>Sonnet 5 runs the skill and Haiku 4.5 judges. Unpinned, a model release would move scores, and a regression would look like a model change. Re-baseline on purpose when you change them.</td></tr>
+<tr><td><b>It costs money and gates nothing</b></td><td>About $0.90 for the trigger suite and $2.20 for behaviour × 3. Run it after changing a skill's description or procedure, not on every commit. <code>scripts/test.sh</code> is the free check that does run on every release.</td></tr>
+<tr><td><b>Machine-specific</b></td><td>The behaviour cases need <code>gh</code> and <code>git</code> wrappers in <code>~/.local/bin</code>, which live outside the repo.</td></tr>
+<tr><td><b>Only one skill is covered</b></td><td><code>release-version</code> has evals. <code>evaluate-session</code>, <code>context-handover</code>, <code>session-handoff</code> and <code>the-traveler</code> have no trigger cases yet, so nothing checks that they fire or that they don't steal each other's prompts.</td></tr>
+</table></div>
+
+<h2>9 · Running it</h2>
+<pre><code>scripts/eval.sh                          # everything
+scripts/eval.sh trigger                  # 8 trigger cases, ~$0.90
+scripts/eval.sh behaviour                # 4 behaviour cases
+scripts/eval.sh cut-a-release --runs 1 --keep-temp   # one case, keep the sandbox to inspect</code></pre>
+<p>Then open <code>plugin/evals/results/&lt;newest&gt;/report.html</code> for per-grader explanations and the trace of each run.</p>
+
+<h2>Glossary</h2>
+<dl class="gloss">
+<dt>Eval</dt><dd>An automated test for model behaviour: a prompt, a world, and checks.</dd>
+<dt>Case</dt><dd>One eval: a folder with <code>case.yaml</code>, <code>prompt.md</code>, <code>scaffold.sh</code> and <code>graders/</code>.</dd>
+<dt>Fixture / scaffold</dt><dd>The fake project the case runs in. Shared sources are in <code>fixtures/</code>, copied into each case by <code>scripts/sync-eval-fixtures.sh</code>.</dd>
+<dt>Grader</dt><dd>One pass/fail check on a run.</dd>
+<dt>Deterministic grader</dt><dd>Decided by code (<code>tool_used</code>, <code>regex</code>). Same input, same verdict.</dd>
+<dt>Judge / LLM grader</dt><dd>Decided by a model reading a written rubric. Flexible but noisy.</dd>
+<dt>Trace</dt><dd>The recorded log of every tool call and message in a run.</dd>
+<dt>Trigger case</dt><dd>Tests only whether the skill activates. Positives must fire, negatives must stay silent.</dd>
+<dt>Near miss</dt><dd>A negative that sounds like the skill's job but isn't (“Create a PR”). It catches an over-eager description.</dd>
+<dt>Threshold</dt><dd>The minimum case score counted as a pass: 0.8 here.</dd>
+<dt>Baseline</dt><dd>A recorded “this is what healthy looks like” result that later runs are compared against.</dd>
+<dt>Ablation</dt><dd>Running with and without the plugin to see what the plugin changes. Switched off here (<code>--ablation none</code>): without the plugin the skill can't fire, so that comparison says nothing.</dd>
+<dt>Held-out case</dt><dd>A test the skill was <em>not</em> tuned against. It is the honest measure of whether a skill generalises.</dd>
+</dl>
+
+</main>
+<script>
+(function () {
+  var D = {
+    case: ['case.yaml', 'The case\'s identity: <code>name</code>, a <code>description</code> for humans, <code>tags: [behaviour]</code> or <code>[trigger]</code> (so <code>eval.sh trigger</code> can select it), and which scaffold script to run.'],
+    prompt: ['prompt.md', 'The message Claude receives, plus limits in the frontmatter: <code>max_turns: 25</code>, a 600 s timeout, which tools are allowed, and <code>EVAL_GH_STUB: "1"</code> so a fake <code>gh</code> logs commands instead of touching GitHub.<pre><code>Cut a release for this branch. Show me the\nrelease notes you propose before anything\nirreversible happens.</code></pre>'],
+    scaffold: ['scaffold.sh', 'Builds the world from scratch in an empty sandbox: a small “greeter” project, a <code>VERSION</code> file and a <code>marketplace.json</code> (two version sources, to catch a bump that lands in only one), a passing test script, a fake <code>origin</code>, and a feature branch with four commits. Generated from <code>fixtures/release-repo.sh</code>. Never edit it directly.'],
+    readme: ['README.md', 'Explains a design choice. The skill pauses to ask you about the version level, and in an eval nobody answers, so the run can end there. The graders therefore only assert things that are true of <em>every</em> correct run, whenever it stops.'],
+    ran: ['ran-check.md · tool_used', 'Did it run <code>version.sh check</code> (the preflight) at least once?<pre><code>tool: Bash\ninput_match: \'version\\.sh\\S*\\s+check\'\nmin: 1</code></pre>'],
+    log: ['read-the-commits.md · tool_used', 'Did it actually read the history with <code>git log</code>? Changelog notes written without reading the commits are guesswork.'],
+    pr: ['no-pr-opened.md · regex on a file', 'The fake <code>gh</code> writes every command to <code>gh.log</code>. The grader checks that <code>pr create</code> is <em>not</em> in it, because the skill must stop for approval before anything irreversible.'],
+    ver: ['version-not-hand-edited.md · regex on trace', 'No <code>Edit</code>/<code>Write</code> call targets <code>VERSION</code> or <code>marketplace.json</code>. Versions must be bumped by the script, never by hand.'],
+    prog: ['shows-progress.md · regex on last message', 'The approval message shows the progress block, e.g. <code>✓ Check the docs</code>. The glyph matters: the bare words appear in the skill text itself, so matching only those passed a run that showed no progress at all.'],
+    llm: ['changelog-reads-the-diff.md · llm judge', 'A small rubric for Haiku: <b>PASS</b> if both new features appear as new <em>and</em> the README typo is not an entry. It explicitly says what to ignore: the internal newline fix, wording, formatting. This is the only grader that can judge whether the notes are <em>right</em>, and the only noisy one.']
+  };
+  var det = document.getElementById('detail'), fs = document.querySelectorAll('#tree .f');
+  function show(k, el) { det.innerHTML = '<h4>' + D[k][0] + '</h4><div class="small">' + D[k][1] + '</div>';
+    fs.forEach(function (f) { f.classList.toggle('on', f === el); }); }
+  fs.forEach(function (f) { f.addEventListener('click', function () { show(f.dataset.k, f); }); });
+  show('llm', fs[fs.length - 1]);
+
+  var G = [['ran-check', 'tool_used'], ['read-the-commits', 'tool_used'], ['no-pr-opened', 'regex'],
+           ['version-not-hand-edited', 'regex'], ['shows-progress', 'regex'], ['changelog-reads-the-diff', 'llm']];
+  var gl = document.getElementById('glist');
+  G.forEach(function (g, i) {
+    var l = document.createElement('label'); l.className = 'grow';
+    l.innerHTML = '<input type="checkbox" checked data-i="' + i + '"><span class="gn">' + g[0] + '</span><span class="gt ' + (g[1] === 'llm' ? 'llm' : '') + '">' + g[1] + '</span>';
+    gl.appendChild(l);
+  });
+  var boxes = gl.querySelectorAll('input');
+  function upd() {
+    var p = 0, judgeOff = false, detOff = 0;
+    boxes.forEach(function (b) { b.parentNode.classList.toggle('off', !b.checked);
+      if (b.checked) p++; else if (G[+b.dataset.i][1] === 'llm') judgeOff = true; else detOff++; });
+    var s = p / G.length, ok = s >= 0.8 - 1e-9;
+    document.getElementById('sc').textContent = s.toFixed(2);
+    var f = document.getElementById('fill'); f.style.width = (s * 100) + '%';
+    f.style.background = ok ? 'var(--pass)' : 'var(--fail)';
+    var vd = document.getElementById('vd'), vx = document.getElementById('vx');
+    vd.textContent = ok ? 'Passes the threshold' : 'Below the threshold';
+    vd.style.color = ok ? 'var(--pass)' : 'var(--fail)';
+    vx.textContent = detOff ? 'A deterministic grader failed. These have never given a false result here, so treat it as a real problem with the skill (or a newly broken grader).'
+      : judgeOff ? 'Only the judge failed. That is the known-noisy one: read the release notes in the trace before believing it.'
+      : 'All six graders passed.';
+  }
+  boxes.forEach(function (b) { b.addEventListener('change', upd); });
+  upd();
+})();
+</script>
+</body>
+</html>
