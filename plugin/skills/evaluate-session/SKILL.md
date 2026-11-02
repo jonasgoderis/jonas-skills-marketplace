@@ -99,7 +99,9 @@ leave pointing at a directory that no longer exists.
 
 Never switch it on uninvited. It spends the user's tokens on every exit — say
 what it costs first, roughly 6,000 input tokens per session on Haiku, a fraction
-of a cent.
+of a cent. Repeat the cost, and `--off`, in the reply that confirms the switch or
+reports that it failed: that reply is the one the user reads, and anything said
+earlier in the turn has usually scrolled past.
 
 The hook runs detached, so it never delays the exit; the scorecard lands a few
 seconds after the terminal is back. `SessionEnd` fires on `clear`, `resume`,
@@ -123,6 +125,20 @@ any codebase, and a repo that is public should never carry one.
 The index is the point. One scorecard is a mood; the table is whether the
 practice is actually improving. When the user asks how they are doing generally,
 read the index rather than regrading anything.
+
+## When there is no scorecard
+
+`evaluate.sh` prints the scorecard's path when it has written one. Anything
+else — a skip for a short session, exit 4 for a secret match, or a failure such
+as `claude` missing from PATH or the grading call erroring — means there is no
+grade. Tell the user that, with the reason the script gave and what would fix it.
+
+Do not fill the gap by grading the digest or the transcript yourself. A band
+means something only because a fixed pipeline produced it: the same digest, the
+same restricted grader, the same rubric, checked against the calibration
+fixtures. A grade from this session is none of those. It has seen more than the
+digest allows, it has never been calibrated, and it lands in no index, so it
+looks like a scorecard while measuring something else.
 
 ## Reporting it
 

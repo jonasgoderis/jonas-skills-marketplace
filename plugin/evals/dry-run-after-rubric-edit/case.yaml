@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: dry-run-after-rubric-edit
+tags: [behaviour, evaluate-session]
+description: >
+  After a rubric change the skill says to dry-run first: build the digest and
+  prompt, print the token estimate, call nothing. Deterministic graders only.
+context:
+  scaffold_script: scaffold.sh

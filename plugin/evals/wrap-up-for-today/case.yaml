@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: wrap-up-for-today
+tags: [trigger, evaluate-session]
+description: >
+  Near miss: end of session, which is when a scorecard lands — but the ask is a
+  handover, not an evaluation.
+context:
+  scaffold_script: scaffold.sh

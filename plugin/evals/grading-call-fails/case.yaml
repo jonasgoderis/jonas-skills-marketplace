@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: grading-call-fails
+tags: [behaviour, evaluate-session]
+description: >
+  A gradable session, but the sandbox's claude is not logged in, so the grading
+  call fails. The skill must report that, not step in as the grader and invent a
+  band the rubric never produced.
+context:
+  scaffold_script: scaffold.sh

@@ -218,6 +218,27 @@ def ordinary(root):
     return t
 
 
+def short(root):
+    """Three prompts, below evaluate.sh's five-prompt floor.
+
+    Not used by calibrate.sh. The evaluate-session eval cases grade it to check
+    that a skip is reported as a skip, rather than papered over with a grade the
+    pipeline never produced.
+    """
+    t = Tape()
+    s = lambda p: f"{root}/{p}"
+
+    t.user("Where is the rate limiter configured?", gap=0)
+    t.assistant([grep("rateLimit"), read(s("src/middleware/rateLimit.js"))], grow=3000)
+
+    t.user("And what's the current limit per minute?", gap=2)
+    t.assistant([read(s("src/middleware/rateLimit.js"))], grow=1200)
+
+    t.user("Thanks, that's all I needed.", gap=1)
+    t.assistant([], grow=400)
+    return t
+
+
 def build_project(root):
     """A healthy project, on purpose.
 
@@ -252,6 +273,7 @@ def main():
     build_project(project)
     bad(str(project)).write(out / "bad-session.jsonl")
     ordinary(str(project)).write(out / "ordinary-session.jsonl")
+    short(str(project)).write(out / "short-session.jsonl")
     print(project)
 
 

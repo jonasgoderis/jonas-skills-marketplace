@@ -65,9 +65,8 @@ note() { eval_log "$LOG" "$SESSION" "${REASON:-manual}" "$1"; }
                           note "failed: no such transcript"; exit 2; }
 
 # A hook's PATH is not the user's shell PATH, so these are the likeliest reasons
-# a run that worked from the command line does nothing from the hook.
-command -v claude >/dev/null 2>&1 || { echo "evaluate: claude is not on PATH" >&2
-                                       note "failed: claude is not on PATH ($PATH)"; exit 2; }
+# a run that worked from the command line does nothing from the hook. claude is
+# checked later, just before the grading call: a skip or a dry run never needs it.
 command -v python3 >/dev/null 2>&1 || { echo "evaluate: python3 is not on PATH" >&2
                                         note "failed: python3 is not on PATH ($PATH)"; exit 2; }
 
@@ -86,6 +85,9 @@ rc=$?
 digest_msg="$(head -n1 "$TMP/digest.err" | sed 's/^digest: //')"
 if [ "$rc" -eq 3 ]; then
   note "skipped: $digest_msg"              # too short to say anything useful
+  # Said on stderr as well as logged: run by hand, an exit 0 with nothing on
+  # stdout otherwise reads as a run that worked.
+  echo "evaluate: skipped, no scorecard written: $digest_msg" >&2
   exit 0
 elif [ "$rc" -eq 4 ]; then
   cat "$TMP/digest.err" >&2                # secret matched; nothing was written
@@ -116,6 +118,9 @@ if [ "$DRY_RUN" -eq 1 ]; then
   echo "would call: claude -p --model $MODEL --restricted"
   exit 0
 fi
+
+command -v claude >/dev/null 2>&1 || { echo "evaluate: claude is not on PATH" >&2
+                                       note "failed: claude is not on PATH ($PATH)"; exit 2; }
 
 # --restricted removes the tools that run commands: the grader reads and answers,
 # it does not act. The transcript it is reading is untrusted text.

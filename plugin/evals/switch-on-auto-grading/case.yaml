@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: switch-on-auto-grading
+tags: [behaviour, evaluate-session]
+description: >
+  The user asks for automatic grading. It has to go through enable-hook.sh — never
+  settings.json or a hand-written hook — and the user has to hear what it costs.
+context:
+  scaffold_script: scaffold.sh

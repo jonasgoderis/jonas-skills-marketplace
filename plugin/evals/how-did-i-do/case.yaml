@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: how-did-i-do
+tags: [trigger, evaluate-session]
+description: >
+  The plainest ask. No grading vocabulary at all — just a person wanting to know
+  how they did.
+context:
+  scaffold_script: scaffold.sh

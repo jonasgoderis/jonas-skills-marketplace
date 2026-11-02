@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: grade-the-essays
+tags: [trigger, evaluate-session]
+description: >
+  Near miss: grading against a rubric, the skill's own vocabulary, applied to
+  something other than the user's session.
+context:
+  scaffold_script: scaffold.sh

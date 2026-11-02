@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: review-the-branch
+tags: [trigger, evaluate-session]
+description: >
+  Near miss: a review, but of the code. That belongs to code-review, and the skill
+  grades the user, not the diff.
+context:
+  scaffold_script: scaffold.sh

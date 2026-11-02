@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: scorecard-every-session
+tags: [trigger, evaluate-session]
+description: >
+  The hook half of the skill, asked for without naming hooks, scorecards or
+  grading.
+context:
+  scaffold_script: scaffold.sh
