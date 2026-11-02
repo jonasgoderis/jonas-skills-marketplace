@@ -106,7 +106,24 @@ User -> API edge instead of reporting it. The checklist now covers only the
 cells the run added or changed.
 
 No case checks the spacing rules. A regex cannot measure the distance between
-shapes, so that needs a checker script.
+shapes. The skill now ships `scripts/check_drawio.py`, which does measure it, but
+no grader runs that script on a case's output yet.
+
+Field-feedback update (v1.15.0), 3 runs each, same models, recorded 2026-11-02:
+
+| Run | Result | Cost |
+| --- | --- | --- |
+| First full run | 9/11 at 1.00 | $7.03 |
+| After the `--find` icon lookup | 10/11 at 1.00 | $7.07 |
+| After the grader fix and the style strings in `--find` | 11/11 at 1.00 | $6.82 |
+
+Both failures were in `icon-labels-above-lines`. First, runs spent all 20
+turns searching the draw.io app files by hand for AWS stencil names. The
+script's `--find` option now does that lookup in one call. Second,
+`04-icons-after-edges` ignored the parent of each cell, so an icon inside a
+group container failed it even though the skill allows that order. The
+pattern now uses a backreference to compare parents. The full history is in
+`docs/plans/2026-11-02-drawio-conventions-feedback.md`.
 
 `drawio-export-png` ends on the eight-turn cap after trying to render. That is
 expected and does not affect the score: the grader only asks whether the skill
