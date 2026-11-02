@@ -1,6 +1,19 @@
 # Changelog
 
 
+## [1.14.0] - 2026-11-02
+
+### Added
+
+- **Drawio-conventions skill.** A house style for draw.io diagrams, applied whenever a `.drawio` file is created or edited. Edges attach to the shape rather than to a fixed connection point, so they follow when shapes move. Line jumps are on by default. Spacing, edge, label and icon defaults keep diagrams readable, and Claude runs a checklist over the XML before it calls a diagram done. The style choices live in `references/house-style.md`, so they can be replaced without touching the rules.
+- Eval suites for evaluate-session (12 cases) and drawio-conventions (11 cases), next to the existing release-version suite. `scripts/eval.sh <skill-name>` runs one skill's cases.
+
+### Fixed
+
+- Evaluate-session no longer grades a session itself when the grading script produces no scorecard. A skipped short session, a secret match or a failed grading call is now reported with its reason.
+- `evaluate.sh` no longer needs `claude` on PATH for a skip or a dry run, and a skip is now reported on stderr instead of ending silently.
+- Switching on automatic grading repeats the cost and how to switch it off in the reply that confirms it.
+
 ## [1.13.0] - 2026-09-23
 
 ### Added
