@@ -1,6 +1,22 @@
 # Changelog
 
 
+## [1.15.0] - 2026-11-02
+
+### Added
+
+- **drawio-conventions checker script.** `scripts/check_drawio.py` runs the mechanical part of the checklist over the file on disk: edges, fixed points, line jumps, perimeters, flat look, drawing order, compression, tabs and label length. It also checks the spacing, alignment and avoidable crossings of connected shapes, and checks icon names against the installed draw.io app. `--find` looks up icon names and prints a style string to copy.
+- **Safe file writing in drawio-conventions.** Before a generator script runs again, Claude keeps the user's own draw.io edits. Claude also warns when draw.io has unsaved changes to the file, and keeps the tab ids and names of multi-tab files unique.
+- **New drawio-conventions house-style rules.** The rules cover a colour per flow when a legend explains it, step numbers on ordered flows, labels of at most 3 lines, group containers, and labels that move along their own line.
+
+### Changed
+
+- **More room and straighter lines in drawio diagrams.** The minimum gap between shapes is now 120 px, up from 80 px. Connected shapes line up by their centres. Every edge keeps a straight end of 30 px before the arrow head (`targetJettySize=30`). Icon labels no longer wrap. Items in a stacked list without edges between them may sit 10–20 px apart.
+
+### Fixed
+
+- **Eval grader for icon drawing order.** The grader `icon-labels-above-lines` now compares parents. Before, it failed correct diagrams that put icons inside a group container.
+
 ## [1.14.0] - 2026-11-02
 
 ### Added
