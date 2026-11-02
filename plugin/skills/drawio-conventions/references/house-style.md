@@ -16,13 +16,15 @@ a TBD row, so the diagram stays consistent.
 | Setting | Key | House default | Why |
 | --- | --- | --- | --- |
 | Edge corners | `rounded` (on edges) | `0` | Sharp corners on edge bends. |
-| Edge colour | `strokeColor` (on edges) | `#999999` | A grey line, so the shapes stand out more than the lines. |
+| Edge colour | `strokeColor` (on edges) | `#999999` | A grey line, so the shapes stand out more than the lines. See [Colour per flow](#colour-per-flow) for the one exception. |
 | Edge width | `strokeWidth` (on edges) | `2` | The line width in pixels. |
 | Arrow head | `endArrow` | `block` | A filled block marker at the end of an edge. draw.io's own default is `classic`. |
+| Straight end | `targetJettySize` (on edges) | `30` | The line runs straight for at least 30 px before the arrow head, so the head never sits right on a bend. It overrides the automatic `jettySize` for the target end only. It works on edges without waypoints; see the waypoint rule for the others. |
 | Edge labels | `labelBackgroundColor`, `defaultLabelBackgroundColor` (on edges with a label) | `default`, `page` | The line is cut out behind the label instead of running through it. |
 | Edge label size | `fontSize` (on edges with a label and on edge label cells) | `12` | Edge labels stay readable. The `edgeLabel` class would set 11. |
 | Icon labels | `labelBackgroundColor` (on icons) | `#FFFFFF` | A white box behind an icon's label, so a line under it does not cross the text. |
 | Label wrapping | `whiteSpace`, `html` (on vertices) | `wrap`, `1` | Long labels wrap inside the shape instead of running over its border. |
+| Icon label wrapping | `whiteSpace`, `html` (on icons) | `nowrap`, `1` | An icon's label sits under the picture. With `wrap`, it can only be as wide as the icon, often 64 px, and becomes a narrow stack of single words. |
 | Colour meanings | `fillColor`, `strokeColor` per kind of element | TBD | A fixed colour for each kind of thing, for example service or data store. |
 | Vertex shape | `shape`, or a bare token such as `ellipse` | TBD | The default box shape. draw.io's own default is a rectangle. |
 | Vertex corners | `rounded` (on vertices) | TBD | Sharp or rounded box corners. |
@@ -37,9 +39,19 @@ Grid size and page size are attributes on the `<mxGraphModel>` element. They are
 not style keys, so they never go in a `style="…"` string.
 
 The edge values above go after the rule B string in `SKILL.md`. With the current
-values, a plain edge ends with `strokeColor=#999999;strokeWidth=2;endArrow=block;`,
+values, a plain edge ends with
+`strokeColor=#999999;strokeWidth=2;endArrow=block;targetJettySize=30;`,
 and an edge with a label also gets
 `labelBackgroundColor=default;defaultLabelBackgroundColor=page;fontSize=12;`.
+
+## Colour per flow
+
+Edges are grey by default. A diagram that shows several flows, such as a
+request path and a data sync, may give each flow its own edge colour. This is
+only allowed when the diagram has a legend that explains each colour. Without
+the legend, a reader cannot know what a colour means. Keep the other edge
+values (width, arrow head, jumps) the same for every flow. Name the colours in
+your report, as a deliberate exception.
 
 ## Flat look
 
@@ -52,26 +64,85 @@ or `green` as bare tokens, because they add shadow, glass and a gradient.
 Leave room between things. In a cramped diagram, a label can sit between
 two lines, and the reader cannot see which line it belongs to.
 
-- **Between shapes:** at least 80 px of empty space between the outlines of two
+- **Between shapes:** at least 120 px of empty space between the outlines of two
   shapes, both side by side and above each other.
 - **Around a labelled edge:** the gap between the two shapes of an edge with a
   label is at least the label width plus 40 px on each side. Estimate the width
   as about 7 px per character at `fontSize=12`. A 10-character label then needs
-  70 + 2 × 40 = 150 px.
+  70 + 2 × 40 = 150 px. Use the larger of this and the 120 px minimum.
 - **Between parallel lines:** two edges that run side by side stay at least
   30 px apart. If the routing puts them closer, move a shape or add waypoints
   (`<Array as="points">` in the edge geometry). Waypoints do not fix the
   attachment point, so they do not break rule A.
-- **Label position:** leave an edge label on its line, centred. Do not move it
-  with an offset or with `labelPlacement`. On its own line, with the line cut out
-  behind it, the label cannot belong to anything else.
+- **Stacked lists:** items in a stack without edges between them, such as a
+  column of queue boxes or a list of steps, may sit 10 to 20 px apart. The
+  120 px rule exists to leave room for lines and their labels. Without lines,
+  the items read better as one group.
+- **Label position:** keep an edge label on its line. It may move along the
+  line: on an edge label cell, `mxGeometry x` runs from `-1` (the source end)
+  to `1` (the target end), and `0` is the centre. Use that to move a label away
+  from a crossing or a bend. Do not move it off the line: leave `mxGeometry y`
+  at `0`, and do not add an `<mxPoint as="offset">` or `labelPlacement`. On its
+  own line, with the line cut out behind it, the label cannot belong to
+  anything else.
+- **Waypoints:** put the last waypoint of an edge on the centre line of the
+  target, on the axis where the edge enters it. Without a fixed entry point,
+  draw.io aims at the centre of the target. A waypoint a few pixels off that
+  line gives a small zigzag just before the arrow head. Keep the last waypoint
+  at least 30 px from the target's outline. draw.io ignores `targetJettySize`
+  on an edge with waypoints, so the waypoint itself must leave the straight end.
 
-These distances are minimums. Work them out from the `x`, `y`, `width` and
+## Layout
+
+- **Centres in line:** two shapes joined by an edge, side by side, share the
+  same centre `y` (`y + height / 2`). Two shapes above each other share the
+  same centre `x`. Line up the centres, not the tops or the left edges. An icon
+  of 64 px next to a box of 60 px with the same `y` is 2 px off, and draw.io
+  then draws a small jog in a line that could be straight.
+- **No crossings without need:** place the targets of a group of edges in the
+  same order as their sources. If A1 sits above A2, the target of A1 sits above
+  the target of A2. The same holds for several edges that leave one shape:
+  order their targets the way the edges leave it. When two edges cross, first
+  try to swap two shapes. Only keep a crossing when no swap removes it; the line
+  jump then shows which line goes where.
+
+These distances are minimums, apart from the stacked lists. Work them out from the `x`, `y`, `width` and
 `height` of each `mxGeometry`. They are not style keys.
 
 When you edit an existing file, apply the spacing to the shapes you add, and
 move existing shapes only as far as you need to make room. If the existing
 diagram is cramped, tell the user and offer to space it out.
+
+## Labels
+
+- **Length:** keep a label to at most 3 lines. Put longer text in a note: a
+  separate text shape next to the thing it describes. Long labels are the most
+  common cause of labels that overlap lines and other shapes.
+- **Numbered steps:** in a diagram that shows a flow in order, start each edge
+  label with its step number: `1`, `2`, `3`. Steps that happen in parallel
+  share a number with a letter: `6a`, `6b`. The reader can then follow the flow
+  without guessing where it starts. A diagram without an order, such as a
+  plain architecture overview, needs no numbers.
+
+## Groups
+
+Draw a group, such as a resource group, a network or a team boundary, as a real
+container: a dashed rectangle with `container=1`, and the shapes inside it with
+`parent="<group id>"`. Moving the group in draw.io then moves everything in it.
+A plain rectangle drawn behind the shapes looks the same, but leaves its
+contents behind when someone moves it.
+
+- **Order:** write the group before its children, so the children are drawn on
+  top of it.
+- **Coordinates:** a child's `x` and `y` are relative to the top-left corner of
+  its group, not to the page.
+- **Edges:** an edge inside one group gets that group as its `parent`. An edge
+  between shapes in different groups gets the closest group that holds both
+  shapes, or `parent="1"` when there is none. Keep `source` and `target` on the
+  shapes themselves, never on the group, so the edge crosses the group border
+  and ends at the shape.
+- **Icons:** the "icons above lines" rule below works per parent. An icon in a
+  group comes after the edges whose `parent` is that same group.
 
 ## Icons above lines
 
@@ -89,3 +160,8 @@ from the table, the icon's text then covers the line.
 
 Save the file as plain, uncompressed XML, never with `compressed="true"`. Plain
 XML gives readable diffs in git, and a later edit can read it directly.
+
+draw.io keeps backup and draft files next to the diagram, named
+`.$<file name>.bkp` and `.$<file name>.dtmp`. They should not be committed. In a
+git repository without a rule for them, offer to add `.$*.bkp` and `.$*.dtmp` to
+`.gitignore`.

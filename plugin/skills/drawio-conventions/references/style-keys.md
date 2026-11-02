@@ -111,6 +111,7 @@ stroke, `shadow=1` and `glass=1` at once. The `plain-*` variants, such as
 | `arcSize` | number | — | The corner size when `rounded=1`. |
 | `aspect` | `variable`, `fixed` | `variable` | `fixed` keeps the width-to-height ratio. |
 | `whiteSpace` | `wrap`, `nowrap` | — | `wrap` lets the label wrap inside the shape. |
+| `container` | `0`, `1` | `0` | Makes the shape a container. Cells with `parent="<its id>"` sit inside it and move with it. |
 | `html` | `0`, `1` | `1` | Allows HTML in the label. |
 
 ## Perimeters
@@ -139,7 +140,10 @@ perimeter together.
 An icon is a picture rather than a drawn outline. It is `shape=image` (or the
 bare `image` token) with an `image=<url>`, or a stencil from a library, written
 as `shape=mxgraph.<library>.<shape>`, for example the `mxgraph.aws4.*` icons.
-Icon labels usually sit below the picture, set with `verticalLabelPosition`
+A path such as `img/lib/azure2/app_services/Search_Services.svg` points to a
+file inside draw.io itself. A wrong path renders as an empty box without any
+error, so check it with `scripts/check_drawio.py`, and look names up with its
+`--find` option. Icon labels usually sit below the picture, set with `verticalLabelPosition`
 (`top`, `middle`, `bottom`) and `labelPosition` (`left`, `center`, `right`).
 
 No style key sets the drawing order. draw.io draws the cells of one parent in
