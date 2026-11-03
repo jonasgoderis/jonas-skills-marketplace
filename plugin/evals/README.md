@@ -8,7 +8,7 @@ should not) or `behaviour` (once it fires, does it do the job right).
 | --- | --- | --- |
 | `release-version` | 8 | 4 |
 | `evaluate-session` | 8 | 4 |
-| `drawio-conventions` | 7 | 4 |
+| `drawio-conventions` | 7 | 5 |
 
 ```sh
 scripts/eval.sh                     # everything
@@ -124,6 +124,19 @@ script's `--find` option now does that lookup in one call. Second,
 group container failed it even though the skill allows that order. The
 pattern now uses a backreference to compare parents. The full history is in
 `docs/plans/2026-11-02-drawio-conventions-feedback.md`.
+
+Layout update (v1.16.0), 3 runs each, same models, recorded 2026-11-03:
+
+| Selection | Result | Cost |
+| --- | --- | --- |
+| `gateway-fan-out-notes` (new) | 3/3 at 1.00 | $1.03 |
+| `icon-labels-above-lines`, with the new label-position grader | 3/3 at 1.00 | $1.33 |
+
+`gateway-fan-out-notes` gives one shape four outgoing edges and two notes of
+very different length. Its graders check that the edges carry waypoints with
+`followTerminals=1` instead of fixed points, and that a note has `autosize=1`.
+The other cases were not rerun for this update. The decisions are in
+`docs/plans/2026-11-03-drawio-conventions-layout-round-2.md`.
 
 `drawio-export-png` ends on the eight-turn cap after trying to render. That is
 expected and does not affect the score: the grader only asks whether the skill
