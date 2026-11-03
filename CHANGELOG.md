@@ -1,6 +1,16 @@
 # Changelog
 
 
+## [1.16.0] - 2026-11-03
+
+### Changed
+
+- drawio-conventions: lines that leave or enter the same side of a shape no longer overlap. Each gets one waypoint at its own height within that side, with `followTerminals=1` so the waypoints move along when the shape is dragged. Fixed connection points stay forbidden.
+- drawio-conventions: the gap between shapes is now 80 to 120 px instead of at least 120 px. The agent picks the wider gap where several lines meet, lines run side by side, or lines carry labels.
+- drawio-conventions: every icon label sits centred under the icon. The keys that set this are in the house style, because many of draw.io's own style strings put the label on or beside the picture.
+- drawio-conventions: each note is sized to its own text and gets `autosize=1`, instead of all notes sharing one large size.
+- drawio-conventions: `check_drawio.py` checks all four rules. Two lines that meet one side of a shape at the same point give a warning. An icon label that is not under the icon is a failure. A note much larger than its text gives a warning. The gap warning now starts below 80 px.
+
 ## [1.15.0] - 2026-11-02
 
 ### Added
