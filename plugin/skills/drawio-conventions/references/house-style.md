@@ -25,6 +25,8 @@ a TBD row, so the diagram stays consistent.
 | Icon labels | `labelBackgroundColor` (on icons) | `#FFFFFF` | A white box behind an icon's label, so a line under it does not cross the text. |
 | Label wrapping | `whiteSpace`, `html` (on vertices) | `wrap`, `1` | Long labels wrap inside the shape instead of running over its border. |
 | Icon label wrapping | `whiteSpace`, `html` (on icons) | `nowrap`, `1` | An icon's label sits under the picture. With `wrap`, it can only be as wide as the icon, often 64 px, and becomes a narrow stack of single words. |
+| Icon label position | `verticalLabelPosition`, `verticalAlign`, `labelPosition`, `align` (on icons) | `bottom`, `top`, `center`, `center` | Every icon's label sits centred under the picture, never beside it or on top of it. Many style strings from draw.io's own libraries set no position, which puts the label on the picture, and a few put it to the right. Set these four keys on every icon, also when you copy a style string. |
+| Note size | `width`, `height` (on the note's `mxGeometry`), `autosize` (on notes) | fit the text, `1` | Each note is as large as its own text needs, not as large as the other notes. `autosize=1` makes draw.io resize the note when someone edits its text. See [Labels](#labels). |
 | Colour meanings | `fillColor`, `strokeColor` per kind of element | TBD | A fixed colour for each kind of thing, for example service or data store. |
 | Vertex shape | `shape`, or a bare token such as `ellipse` | TBD | The default box shape. draw.io's own default is a rectangle. |
 | Vertex corners | `rounded` (on vertices) | TBD | Sharp or rounded box corners. |
@@ -64,19 +66,37 @@ or `green` as bare tokens, because they add shadow, glass and a gradient.
 Leave room between things. In a cramped diagram, a label can sit between
 two lines, and the reader cannot see which line it belongs to.
 
-- **Between shapes:** at least 120 px of empty space between the outlines of two
-  shapes, both side by side and above each other.
+- **Between shapes:** leave 80 to 120 px of empty space between the outlines of
+  two shapes, both side by side and above each other. 80 px is the minimum.
+  Choose the gap for each part of the diagram. A simple part, with few lines and
+  short labels or none, reads best at about 80 px. Go towards 120 px where
+  several lines meet one shape, where lines run side by side, or where lines
+  carry labels. Too much space makes a small diagram large and empty. Too
+  little space puts labels between lines.
 - **Around a labelled edge:** the gap between the two shapes of an edge with a
   label is at least the label width plus 40 px on each side. Estimate the width
   as about 7 px per character at `fontSize=12`. A 10-character label then needs
-  70 + 2 × 40 = 150 px. Use the larger of this and the 120 px minimum.
+  70 + 2 × 40 = 150 px. Use the larger of this and the 80 px minimum.
 - **Between parallel lines:** two edges that run side by side stay at least
   30 px apart. If the routing puts them closer, move a shape or add waypoints
   (`<Array as="points">` in the edge geometry). Waypoints do not fix the
   attachment point, so they do not break rule A.
+- **Several lines on one side:** when two or more edges leave or enter the
+  same side of a shape, draw.io starts them all at the middle of that side.
+  They then overlap and read as one line. Give each of these edges one
+  waypoint, about 40 px outside the shape, at its own height within that
+  side. For three edges on the right side, use 1/4, 1/2 and 3/4 of the shape's
+  height. With a waypoint, draw.io's orthogonal router leaves the shape at the
+  waypoint's height, so each line gets its own start point. For a top or bottom
+  side, spread the `x` values in the same way. Order the waypoints like the
+  targets, so the lines do not cross: the edge to the highest target leaves
+  highest. Add `followTerminals=1` to these edges, so draw.io moves the
+  waypoints along when someone drags the shape. Do not use `exitY` or `entryY`
+  for this, because rule A forbids fixed points. One waypoint per edge is
+  enough: draw.io still ends the line straight at the centre of its target.
 - **Stacked lists:** items in a stack without edges between them, such as a
   column of queue boxes or a list of steps, may sit 10 to 20 px apart. The
-  120 px rule exists to leave room for lines and their labels. Without lines,
+  80 px minimum exists to leave room for lines and their labels. Without lines,
   the items read better as one group.
 - **Label position:** keep an edge label on its line. It may move along the
   line: on an edge label cell, `mxGeometry x` runs from `-1` (the source end)
@@ -91,6 +111,8 @@ two lines, and the reader cannot see which line it belongs to.
   line gives a small zigzag just before the arrow head. Keep the last waypoint
   at least 30 px from the target's outline. draw.io ignores `targetJettySize`
   on an edge with waypoints, so the waypoint itself must leave the straight end.
+  The exception is several edges that enter the same side of the target: their
+  last waypoints spread along that side, as described above.
 
 ## Layout
 
@@ -118,6 +140,13 @@ diagram is cramped, tell the user and offer to space it out.
 - **Length:** keep a label to at most 3 lines. Put longer text in a note: a
   separate text shape next to the thing it describes. Long labels are the most
   common cause of labels that overlap lines and other shapes.
+- **Note size:** size every note to its own text. Do not give all notes the
+  same size: a short note in a large box leaves a block of empty space, and the
+  diagram looks unfinished. Estimate the width as about 7 px per character of
+  the longest line at `fontSize=12`, plus 20 px, and stop at about 300 px. Let
+  longer lines wrap inside that width. Estimate the height as about 18 px per
+  line, plus 20 px. Add `autosize=1`, so the note keeps fitting when someone
+  edits its text in draw.io.
 - **Numbered steps:** in a diagram that shows a flow in order, start each edge
   label with its step number: `1`, `2`, `3`. Steps that happen in parallel
   share a number with a letter: `6a`, `6b`. The reader can then follow the flow

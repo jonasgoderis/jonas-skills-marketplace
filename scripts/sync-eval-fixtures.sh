@@ -54,6 +54,7 @@ house-style-new-diagram     drawio-repo
 edit-reports-old-edge       drawio-repo
 fixed-point-on-request      drawio-repo
 icon-labels-above-lines     drawio-repo
+gateway-fan-out-notes       drawio-repo
 '
 
 CHECK=0

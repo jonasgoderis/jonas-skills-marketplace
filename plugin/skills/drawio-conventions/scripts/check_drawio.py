@@ -6,8 +6,9 @@ Usage: check_drawio.py <file.drawio> [--drawio-asar PATH] [--expect-tabs NAME,NA
 
 It reads the file from disk, so it checks what was really written, not what
 the caller meant to write. It covers the general rules (A and B, flat look,
-drawing order, file format, tabs, layout of connected shapes, icon names). It does not
-know the house-style values, because a user can replace them: compare those by
+drawing order, file format, tabs, layout of connected shapes, lines that share
+a start point, icon names, icon label position, note size). It does not
+know the other house-style values, because a user can replace them: compare those by
 hand against references/house-style.md.
 
 Output: one line per finding, FAIL or WARN, with the tab name and cell id.
@@ -42,7 +43,10 @@ SHAPE_PERIMETER = {
 SELF_PERIMETER_TOKENS = {"ellipse", "rhombus", "triangle"}
 THEME_TOKENS = {"blue", "green", "yellow", "orange", "red", "pink",
                 "purple", "gray", "turquoise"}
-MIN_GAP = 120
+# The house style lets the gap vary from 80 to 120 px; below 80 is too tight.
+MIN_GAP = 80
+# Two edge ends closer than this on one side of a shape draw as one line.
+SAME_POINT = 10
 # Centres closer than this count as aligned; a larger offset gives the line a jog.
 ALIGN_TOLERANCE = 1
 MAX_LABEL_LINES = 3
@@ -147,6 +151,35 @@ def centre(g):
     return g[0] + g[2] / 2, g[1] + g[3] / 2
 
 
+def attach(shape, aim, waypoint):
+    """Return (side, position along that side) where an edge leaves `shape`.
+
+    `aim` is the edge's waypoint next to the shape, or the other shape's
+    centre. With a waypoint, draw.io's orthogonal router leaves the shape at the
+    waypoint's height (or x) when that lies within the shape. Without one, it
+    starts from the middle of the side that faces the other shape.
+    """
+    x, y, w, h = shape
+    cx, cy = centre(shape)
+    if waypoint:
+        if y <= aim[1] <= y + h and not x <= aim[0] <= x + w:
+            return ("right" if aim[0] > cx else "left"), aim[1]
+        if x <= aim[0] <= x + w and not y <= aim[1] <= y + h:
+            return ("bottom" if aim[1] > cy else "top"), aim[0]
+        return None
+    dx, dy = aim[0] - cx, aim[1] - cy
+    if abs(dx) >= abs(dy):
+        return ("right" if dx > 0 else "left"), cy
+    return ("bottom" if dy > 0 else "top"), cx
+
+
+def text_lines(label):
+    """Split a label into its lines, without HTML tags."""
+    label = re.sub(r"<br\s*/?>|</div>|</p>", "\n", label or "")
+    label = re.sub(r"<[^>]+>", "", label).replace("&nbsp;", " ")
+    return [line for line in label.split("\n") if line.strip()]
+
+
 def check_diagram(name, model, rep, names):
     root = model.find("root")
     if model.get("shadow") != "0":
@@ -177,6 +210,7 @@ def check_diagram(name, model, rep, names):
 
     edges_by_parent = {}
     flows = []
+    ends = {}  # (shape id, side) -> [(edge id, position along the side)]
     for el in root:
         cid = el.get("id")
         cell = cell_of(el)
@@ -214,7 +248,7 @@ def check_diagram(name, model, rep, names):
                 if keys.get(k) != v:
                     rep.fail(where, f"edge style needs {k}={v}")
             label = cell.get("value") or ""
-            lines = label.replace("<br/>", "\n").replace("<br>", "\n").count("\n") + 1 if label else 0
+            lines = len(text_lines(label))
             if lines > MAX_LABEL_LINES:
                 rep.warn(where, f"label has {lines} lines; keep it to {MAX_LABEL_LINES} and move the rest into a note")
             # Spacing between the two shapes of an edge (rule: at least 80 px).
@@ -237,6 +271,15 @@ def check_diagram(name, model, rep, names):
                             rep.warn(where, f"{src} and {tgt} sit above each other but their centres differ by {abs(ax - bx):.0f} px horizontally; align the centres (not the left edges) for a straight line")
                     if a and b:
                         flows.append((cid, centre(a), centre(b)))
+                    if a and b and cell.get("parent") == cell_of(by_id[src]).get("parent"):
+                        pts = [(float(p.get("x", 0)), float(p.get("y", 0)))
+                               for p in (g.find("Array") if has_points else [])]
+                        for shape_id, shape, aim, wp in (
+                                (src, a, pts[0] if pts else centre(b), bool(pts)),
+                                (tgt, b, pts[-1] if pts else centre(a), bool(pts))):
+                            spot = attach(shape, aim, wp)
+                            if spot:
+                                ends.setdefault((shape_id, spot[0]), []).append((cid, spot[1]))
             continue
 
         if cell.get("vertex") != "1":
@@ -254,6 +297,19 @@ def check_diagram(name, model, rep, names):
                 stencil = keys.get(key, "")
                 if stencil.startswith("mxgraph.") and stencil not in stencils:
                     rep.warn(where, f"stencil {stencil} is not in the names this script knows; look it up with --find, or check it in draw.io")
+        if is_icon(tokens, keys) and cell.get("value"):
+            if keys.get("verticalLabelPosition") != "bottom" or keys.get("labelPosition", "center") != "center":
+                rep.fail(where, "icon label is not under the icon; set verticalLabelPosition=bottom;verticalAlign=top;labelPosition=center;align=center")
+        # A note sized to fit its text, not to match the other notes.
+        if ("text" in tokens or keys.get("shape") == "note") and cell.get("value"):
+            g = geom(cid)
+            lines = text_lines(cell.get("value"))
+            if g and lines:
+                chars = max(len(line) for line in lines)
+                rows = sum(-(-len(line) * 7 // max(g[2] - 10, 1)) for line in lines)
+                fit_w, fit_h = chars * 7 + 20, rows * 18 + 20
+                if g[3] > 2 * fit_h and g[3] - fit_h > 40 or g[2] > 2 * fit_w and g[2] - fit_w > 60:
+                    rep.warn(where, f"note is {g[2]:.0f} x {g[3]:.0f} px but its text needs about {min(g[2], fit_w):.0f} x {fit_h:.0f}; size each note to its own text")
 
     # Two edges that run the same way but swap order between their ends will
     # cross. Swapping two shapes usually removes the crossing.
@@ -269,6 +325,14 @@ def check_diagram(name, model, rep, names):
                 d_src, d_tgt = s1[across] - s2[across], t1[across] - t2[across]
                 if d_src * d_tgt < 0:
                     rep.warn(f"[{name}] {e1}, {e2}", "these edges swap order between their ends and probably cross; swap the two targets (or the two sources) to remove the crossing")
+
+    # Lines that leave or enter one side of a shape at the same point overlap
+    # and read as one line. A waypoint per edge at its own height spreads them.
+    for (shape_id, side), spots in ends.items():
+        spots.sort(key=lambda s: s[1])
+        for (e1, p1), (e2, p2) in zip(spots, spots[1:]):
+            if p2 - p1 < SAME_POINT:
+                rep.warn(f"[{name}] {e1}, {e2}", f"these edges meet {shape_id} at the same point on its {side} side and overlap; give each a waypoint at its own height within the side, for example 1/4, 1/2, 3/4")
 
     # Drawing order: every icon after all edges that share its parent.
     for el in root:

@@ -46,7 +46,7 @@ copied exactly from the reference.
 | `jumpSize` | number | `6` | The width of the jump at a crossing. |
 | `jumpLayers` | `0`, `1` | `1` | `0` limits jumps to crossings with edges on the same layer. |
 | `libavoidRouting` | `0`, `1` | `0` | Routes an orthogonal edge around shapes in its way. |
-| `followTerminals` | `0`, `1` | `0` | Waypoints move along when the connected shapes move. |
+| `followTerminals` | `0`, `1` | `0` | Waypoints move along when the connected shapes move. The house style sets it on edges whose waypoints spread several lines on one side of a shape. |
 
 ## Connection points
 
@@ -143,8 +143,11 @@ as `shape=mxgraph.<library>.<shape>`, for example the `mxgraph.aws4.*` icons.
 A path such as `img/lib/azure2/app_services/Search_Services.svg` points to a
 file inside draw.io itself. A wrong path renders as an empty box without any
 error, so check it with `scripts/check_drawio.py`, and look names up with its
-`--find` option. Icon labels usually sit below the picture, set with `verticalLabelPosition`
+`--find` option. Where an icon's label sits is set by `verticalLabelPosition`
 (`top`, `middle`, `bottom`) and `labelPosition` (`left`, `center`, `right`).
+Without them, draw.io puts the label in the middle of the picture. A label
+under the icon needs `verticalLabelPosition=bottom;verticalAlign=top;`, and the
+house style adds `labelPosition=center;align=center;` to be explicit.
 
 No style key sets the drawing order. draw.io draws the cells of one parent in
 the order they appear in the XML, so a cell later in the file is drawn on top of
@@ -160,6 +163,9 @@ an earlier one.
 | `fontStyle` | bitmask | `0` | `1` bold, `2` italic, `4` underline. Add them up to combine. |
 | `align` | `left`, `center`, `right` | `center` | Horizontal text alignment. |
 | `verticalAlign` | `top`, `middle`, `bottom` | `middle` | Vertical text alignment. |
+| `verticalLabelPosition` | `top`, `middle`, `bottom` | `middle` | Puts the whole label above, on or below the shape. |
+| `labelPosition` | `left`, `center`, `right` | `center` | Puts the whole label left of, on or right of the shape. |
+| `autosize` | `0`, `1` | `0` | draw.io resizes the shape to fit its label whenever someone edits the label. It does not resize when the file is opened, so set a fitting size as well. |
 | `labelBackgroundColor` | `#RRGGBB`, `none`, `default` | — | A background behind the label, useful on edges. |
 | `defaultLabelBackgroundColor` | `page` | — | With `labelBackgroundColor=default`: no background box. The label is cut out of the edge instead. |
 
