@@ -55,6 +55,7 @@ edit-reports-old-edge       drawio-repo
 fixed-point-on-request      drawio-repo
 icon-labels-above-lines     drawio-repo
 gateway-fan-out-notes       drawio-repo
+azure-group-long-labels     drawio-repo
 '
 
 CHECK=0

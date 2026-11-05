@@ -81,6 +81,16 @@ two lines, and the reader cannot see which line it belongs to.
   30 px apart. If the routing puts them closer, move a shape or add waypoints
   (`<Array as="points">` in the edge geometry). Waypoints do not fix the
   attachment point, so they do not break rule A.
+- **No line on top of another:** two lines must never run along the same
+  stretch, because then one hides the other. Crossing is fine; the line jump
+  shows it. Lines end up on top of each other in three common ways. Two edges
+  between the same two shapes in opposite directions take exactly the same
+  route: give each a waypoint so they run at least 30 px apart, or draw one
+  edge with an arrow head at both ends (`startArrow=block`) when it means a
+  two-way connection. Several edges on one side of a shape start at the same
+  point: see the next item. Two edges between different shapes can pick the
+  same corridor between two columns: move a shape, or add a waypoint to one of
+  them. The script renders the diagram and reports every such stretch.
 - **Several lines on one side:** when two or more edges leave or enter the
   same side of a shape, draw.io starts them all at the middle of that side.
   They then overlap and read as one line. Give each of these edges one
@@ -140,9 +150,19 @@ diagram is cramped, tell the user and offer to space it out.
 - **Length:** keep a label to at most 3 lines. Put longer text in a note: a
   separate text shape next to the thing it describes. Long labels are the most
   common cause of labels that overlap lines and other shapes.
+- **Long labels on shapes and icons:** a label must stay inside its shape, and
+  an icon label must stay narrow enough not to reach its neighbours. When a
+  label is too long for one line, split it over 2 lines with `<br>` (the file
+  uses `html=1`), at a word boundary near the middle, so both lines have about
+  the same length. Use 3 lines only when 2 are not enough. Estimate the width
+  as about 6 px per character at `fontSize=12`. In a box, each line must fit
+  the box width minus 10 px, and the lines together must fit its height (about
+  15 px per line, plus 10 px). An icon line stays under about 160 px, roughly
+  25 characters. If 3 lines still do not fit, widen the shape, shorten the
+  label, or move the detail into a note.
 - **Note size:** size every note to its own text. Do not give all notes the
   same size: a short note in a large box leaves a block of empty space, and the
-  diagram looks unfinished. Estimate the width as about 7 px per character of
+  diagram looks unfinished. Estimate the width as about 6 px per character of
   the longest line at `fontSize=12`, plus 20 px, and stop at about 300 px. Let
   longer lines wrap inside that width. Estimate the height as about 18 px per
   line, plus 20 px. Add `autosize=1`, so the note keeps fitting when someone
@@ -157,21 +177,40 @@ diagram is cramped, tell the user and offer to space it out.
 
 Draw a group, such as a resource group, a network or a team boundary, as a real
 container: a dashed rectangle with `container=1`, and the shapes inside it with
-`parent="<group id>"`. Moving the group in draw.io then moves everything in it.
-A plain rectangle drawn behind the shapes looks the same, but leaves its
-contents behind when someone moves it.
+`parent="<group id>"`. The group may have a fill. Moving the group in draw.io
+then moves everything in it. A plain rectangle drawn behind the shapes looks
+the same, but leaves its contents behind when someone moves it.
 
-- **Order:** write the group before its children, so the children are drawn on
-  top of it.
+draw.io draws a group together with everything in it, at the group's own place
+in the file. That decides which lines show on top of a group's fill and which
+lines its icons cover. The rules below follow from it.
+
+- **Order:** within each parent, write the edges first, then the groups, then
+  the other shapes and icons. Write a group before its children.
 - **Coordinates:** a child's `x` and `y` are relative to the top-left corner of
-  its group, not to the page.
-- **Edges:** an edge inside one group gets that group as its `parent`. An edge
-  between shapes in different groups gets the closest group that holds both
-  shapes, or `parent="1"` when there is none. Keep `source` and `target` on the
-  shapes themselves, never on the group, so the edge crosses the group border
-  and ends at the shape.
-- **Icons:** the "icons above lines" rule below works per parent. An icon in a
-  group comes after the edges whose `parent` is that same group.
+  its group, not to the page. The waypoints of an edge are relative to the
+  edge's own parent.
+- **Edges:** an edge belongs to the parent of whichever of its two ends is drawn
+  later. In practice:
+  - Both ends in the same group: that group.
+  - One end on the page and one in a group: the group.
+  - Ends in two different groups: the group that comes later in the file.
+  - Both ends on the page: the page, `parent="1"`.
+
+  The line is then drawn after the fill of the group it enters, so the fill
+  does not hide it. It is also drawn before the icons of that group, so it
+  does not cover their labels. An edge on the page that enters a filled group
+  disappears under the fill, and an edge after a group is drawn over its
+  icons. Keep `source` and `target` on the shapes themselves, never on the
+  group.
+- **Lines between two groups:** the part of the line over the earlier group is
+  drawn after all of that group, icons included. Route it so it does not pass
+  over the earlier group's icons.
+- **Lines that only pass over a group:** a line with no end inside a filled
+  group disappears under its fill. Route it around the group with waypoints.
+- **Editing in draw.io:** when someone reconnects an edge in the app, draw.io
+  moves it to the closest parent that holds both ends, at the end of the file.
+  It can then cover icons again. The script reports that.
 
 ## Icons above lines
 
@@ -180,10 +219,13 @@ token, or a stencil such as `shape=mxgraph.aws4.…`. Its text must sit above an
 line that passes behind it.
 
 draw.io has no z-index key. It draws the cells of one parent in the order they
-appear in the XML, and a later cell lands on top. So write every icon after all
-edges that share its `parent`. When you add an edge to an existing file, insert
-it before the icons, not at the end. Together with the white label background
-from the table, the icon's text then covers the line.
+appear in the XML, and a later cell lands on top. A group is drawn with all its
+contents at the group's own place. So write every icon after all edges that
+share its `parent`, and put each edge in the parent described under Groups.
+Then every icon, also one inside a group, is drawn after the lines that reach
+it. When you add an edge to an existing file, insert it before the icons, not
+at the end. Together with the white label background from the table, the
+icon's text then covers the line.
 
 ## File format
 
