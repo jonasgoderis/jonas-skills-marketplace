@@ -1,6 +1,15 @@
 # Changelog
 
 
+## [1.17.0] - 2026-11-05
+
+### Changed
+
+- drawio-conventions: long labels on shapes and icons are split over 2 lines with `<br>`, 3 at most. If they still do not fit, the shape gets wider, the label shorter, or the detail moves into a note.
+- drawio-conventions: an edge belongs to the parent of whichever end is drawn later. A line into a group sits inside the group, so it shows on top of a filled group and stays under the group's icons and their labels.
+- drawio-conventions: lines must never run on top of each other. The house style names the usual causes, such as two edges in opposite directions between the same shapes.
+- drawio-conventions: `check_drawio.py` warns about labels too long for their shape, checks the drawing order of icons across groups, and reports an edge that ends in a filled group but sits outside it. When draw.io desktop is installed, it renders each tab to SVG and reports lines that share a stretch. `--no-render` skips that step.
+
 ## [1.16.0] - 2026-11-03
 
 ### Changed
