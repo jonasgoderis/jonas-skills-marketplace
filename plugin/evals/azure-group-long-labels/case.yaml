@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: azure-group-long-labels
+tags: [behaviour, drawio-conventions]
+description: >
+  Icons inside a group container, with lines from outside that cross the group,
+  a long icon name, and a webhook that runs opposite to a call. The group has no
+  may have a fill, so every edge with an end in the group must be inside it, and
+  page-level edges come before the group so no line covers an icon label. Long
+  icon labels are split over lines. Checked on the file. Lines on top
+  of each other only show in a render, so the case relies on the script for
+  those.
+context:
+  scaffold_script: scaffold.sh

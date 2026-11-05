@@ -8,7 +8,7 @@ should not) or `behaviour` (once it fires, does it do the job right).
 | --- | --- | --- |
 | `release-version` | 8 | 4 |
 | `evaluate-session` | 8 | 4 |
-| `drawio-conventions` | 7 | 5 |
+| `drawio-conventions` | 7 | 6 |
 
 ```sh
 scripts/eval.sh                     # everything
@@ -137,6 +137,22 @@ very different length. Its graders check that the edges carry waypoints with
 `followTerminals=1` instead of fixed points, and that a note has `autosize=1`.
 The other cases were not rerun for this update. The decisions are in
 `docs/plans/2026-11-03-drawio-conventions-layout-round-2.md`.
+
+Labels and overlaps update (v1.17.0), 3 runs each, same models, recorded
+2026-11-05:
+
+| Selection | Result | Cost |
+| --- | --- | --- |
+| Full `drawio-conventions` suite, 13 cases | 13/13 at 1.00 | $10.55 |
+| `azure-group-long-labels` (new) after the final group rule | 3/3 at 1.00 | $1.51 |
+
+`azure-group-long-labels` puts icons in a resource group, with lines from
+outside, a long icon name and a webhook back. Its graders check that no edge
+to a shape in the group stays on the page, that no page-level edge comes after
+a group, and that no icon label line is over 30 characters. The script's
+check for lines on top of each other renders with draw.io, which does not
+work inside the eval sandbox, so no case covers it. The decisions are in
+`docs/plans/2026-11-05-drawio-conventions-labels-and-overlaps.md`.
 
 `drawio-export-png` ends on the eight-turn cap after trying to render. That is
 expected and does not affect the score: the grader only asks whether the skill

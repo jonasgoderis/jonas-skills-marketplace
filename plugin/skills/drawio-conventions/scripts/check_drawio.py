@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Run the mechanical part of the drawio-conventions checklist over a file.
 
-Usage: check_drawio.py <file.drawio> [--drawio-asar PATH] [--expect-tabs NAME,NAME]
+Usage: check_drawio.py <file.drawio> [--drawio-asar PATH] [--expect-tabs NAME,NAME] [--no-render]
        check_drawio.py --find TERM [TERM ...]   list draw.io icon paths and stencil names per TERM
 
 It reads the file from disk, so it checks what was really written, not what
 the caller meant to write. It covers the general rules (A and B, flat look,
 drawing order, file format, tabs, layout of connected shapes, lines that share
-a start point, icon names, icon label position, note size). It does not
+a start point, icon names, icon label position, label fit, note size). When
+draw.io desktop is installed, it also renders each tab to SVG and reports
+lines that run on top of each other. It does not
 know the other house-style values, because a user can replace them: compare those by
 hand against references/house-style.md.
 
@@ -21,8 +23,11 @@ import base64
 import json
 import os
 import re
+import shutil
 import struct
+import subprocess
 import sys
+import tempfile
 import urllib.parse
 import xml.etree.ElementTree as ET
 import zlib
@@ -50,6 +55,14 @@ SAME_POINT = 10
 # Centres closer than this count as aligned; a larger offset gives the line a jog.
 ALIGN_TOLERANCE = 1
 MAX_LABEL_LINES = 3
+# Rough text width per character at fontSize 12. Measured on draw.io's
+# rendering of Helvetica: about 5.5 px, so this keeps a small margin.
+CHAR_WIDTH = 6
+# Two straight stretches of different lines closer than this read as one line.
+OVERLAP_DISTANCE = 4
+# ... and closer than this as one thick line.
+CLOSE_DISTANCE = 12
+MIN_OVERLAP = 10
 ASAR_CANDIDATES = (
     "/Applications/draw.io.app/Contents/Resources/app.asar",
     os.path.expanduser("~/Applications/draw.io.app/Contents/Resources/app.asar"),
@@ -128,6 +141,90 @@ def drawio_names(path):
 
 def find_asar(explicit):
     return explicit or next((p for p in ASAR_CANDIDATES if os.path.exists(p)), None)
+
+
+def find_drawio_binary(asar):
+    """The draw.io program that belongs to app.asar, for rendering."""
+    if asar:
+        res = os.path.dirname(os.path.abspath(asar))
+        for rel in (("..", "MacOS", "draw.io"), ("..", "drawio"), ("..", "draw.io.exe")):
+            cand = os.path.normpath(os.path.join(res, *rel))
+            if os.path.isfile(cand):
+                return cand
+    return shutil.which("drawio") or shutil.which("draw.io")
+
+
+def path_segments(d):
+    """Return the straight segments of an SVG path as (x1, y1, x2, y2).
+
+    Curves and arcs, such as the line jumps, only move the current point.
+    """
+    tokens = re.findall(r"[A-Za-z]|-?\d*\.?\d+(?:e-?\d+)?", d)
+    arity = {"M": 2, "L": 2, "Q": 4, "C": 6, "A": 7, "Z": 0}
+    segs, cmd, cur, nums = [], None, None, []
+    for tok in tokens + ["Z"]:
+        if tok.isalpha():
+            cmd, nums = tok.upper(), []
+            if cmd == "Z":
+                cur = None
+            continue
+        nums.append(float(tok))
+        if cmd and arity.get(cmd) and len(nums) == arity[cmd]:
+            end = (nums[-2], nums[-1])
+            if cmd == "L" and cur:
+                segs.append((cur[0], cur[1], end[0], end[1]))
+            cur, nums = end, []
+            if cmd == "M":
+                cmd = "L"
+    return segs
+
+
+def rendered_lines(binary, path, page, edge_ids):
+    """Render one tab with draw.io and return {edge id: [segments]}."""
+    with tempfile.TemporaryDirectory() as tmp:
+        out = os.path.join(tmp, "page.svg")
+        subprocess.run([binary, "-x", "-f", "svg", "-p", str(page), "-o", out, path],
+                       capture_output=True, timeout=180, check=False)
+        if not os.path.exists(out):
+            raise RuntimeError("draw.io wrote no SVG; a sandbox may block it")
+        svg = ET.parse(out).getroot()
+    lines = {}
+
+    def walk(el, owner):
+        owner = el.get("data-cell-id", owner)
+        if el.tag.endswith("path") and owner in edge_ids and owner not in lines:
+            d = el.get("d", "")
+            if "Z" not in d.upper():  # arrow heads are closed shapes
+                lines[owner] = path_segments(d)
+        for child in el:
+            walk(child, owner)
+    walk(svg, None)
+    return lines
+
+
+def overlapping_lines(lines):
+    """Return {(edge, edge): (distance, length)} for straight stretches of two
+    lines that run along each other closer than CLOSE_DISTANCE."""
+    flat = []
+    for eid, segs in lines.items():
+        for x1, y1, x2, y2 in segs:
+            if abs(y1 - y2) < 0.5:
+                flat.append(("h", y1, min(x1, x2), max(x1, x2), eid))
+            elif abs(x1 - x2) < 0.5:
+                flat.append(("v", x1, min(y1, y2), max(y1, y2), eid))
+    found = {}
+    for i, a in enumerate(flat):
+        for b in flat[i + 1:]:
+            if a[0] != b[0] or a[4] == b[4]:
+                continue
+            dist = abs(a[1] - b[1])
+            length = min(a[3], b[3]) - max(a[2], b[2])
+            if dist < CLOSE_DISTANCE and length >= MIN_OVERLAP:
+                key = tuple(sorted((a[4], b[4])))
+                old = found.get(key)
+                if old is None or (dist, -length) < (old[0], -old[1]):
+                    found[key] = (dist, length)
+    return found
 
 
 def is_icon(tokens, keys):
@@ -228,8 +325,7 @@ def check_diagram(name, model, rep, names):
             rep.fail(where, f"theme class {sorted(tokens & THEME_TOKENS)} adds shadow, glass and gradient")
 
         if cell.get("edge") == "1":
-            parent = cell.get("parent")
-            edges_by_parent.setdefault(parent, []).append(order[cid])
+            edges_by_parent.setdefault(cell.get("parent"), []).append(cid)
             src, tgt = cell.get("source"), cell.get("target")
             if not src or not tgt:
                 rep.fail(where, "edge needs both source and target")
@@ -300,14 +396,44 @@ def check_diagram(name, model, rep, names):
         if is_icon(tokens, keys) and cell.get("value"):
             if keys.get("verticalLabelPosition") != "bottom" or keys.get("labelPosition", "center") != "center":
                 rep.fail(where, "icon label is not under the icon; set verticalLabelPosition=bottom;verticalAlign=top;labelPosition=center;align=center")
+        is_note = "text" in tokens or keys.get("shape") == "note"
+        label_inside = (keys.get("verticalLabelPosition", "middle") == "middle"
+                        and keys.get("labelPosition", "center") == "center")
+        lines = text_lines(cell.get("value"))
+        g = geom(cid)
+        if lines and g and not is_note and keys.get("container") != "1":
+            char_w = CHAR_WIDTH * float(keys.get("fontSize") or 12) / 12
+            widest = max(len(line) for line in lines) * char_w
+            if is_icon(tokens, keys):
+                limit = max(2.5 * g[2], 160)
+                if widest > limit:
+                    rep.warn(where, f"icon label is about {widest:.0f} px wide; split it over 2 lines with <br> (3 at most), each under about {limit:.0f} px")
+                if len(lines) > MAX_LABEL_LINES:
+                    rep.warn(where, f"icon label has {len(lines)} lines; keep it to {MAX_LABEL_LINES}")
+            elif label_inside:
+                room = max(g[2] - 10, 1)
+                if keys.get("whiteSpace") == "wrap":
+                    rows = sum(max(1, -(-int(len(line) * char_w) // int(room))) for line in lines)
+                    word = max(len(w) for line in lines for w in line.split()) * char_w
+                    if word > room:
+                        rep.warn(where, f"a word in the label is about {word:.0f} px wide and the shape only {g[2]:.0f} px; widen the shape or shorten the word")
+                else:
+                    rows = len(lines)
+                    if widest > room:
+                        rep.warn(where, f"label is about {widest:.0f} px wide and runs over the {g[2]:.0f} px shape; split it with <br> or widen the shape")
+                line_h = 1.2 * float(keys.get("fontSize") or 12)
+                if rows > MAX_LABEL_LINES:
+                    rep.warn(where, f"label needs about {rows} lines; keep it to {MAX_LABEL_LINES} by widening the shape, shortening the label or moving detail into a note")
+                elif rows * line_h + 10 > g[3]:
+                    rep.warn(where, f"label needs about {rows} lines but the shape is only {g[3]:.0f} px high, so the text runs over its border; make the shape taller or wider")
         # A note sized to fit its text, not to match the other notes.
-        if ("text" in tokens or keys.get("shape") == "note") and cell.get("value"):
+        if is_note and cell.get("value"):
             g = geom(cid)
             lines = text_lines(cell.get("value"))
             if g and lines:
                 chars = max(len(line) for line in lines)
-                rows = sum(-(-len(line) * 7 // max(g[2] - 10, 1)) for line in lines)
-                fit_w, fit_h = chars * 7 + 20, rows * 18 + 20
+                rows = sum(-(-len(line) * CHAR_WIDTH // max(g[2] - 10, 1)) for line in lines)
+                fit_w, fit_h = chars * CHAR_WIDTH + 20, rows * 18 + 20
                 if g[3] > 2 * fit_h and g[3] - fit_h > 40 or g[2] > 2 * fit_w and g[2] - fit_w > 60:
                     rep.warn(where, f"note is {g[2]:.0f} x {g[3]:.0f} px but its text needs about {min(g[2], fit_w):.0f} x {fit_h:.0f}; size each note to its own text")
 
@@ -334,17 +460,63 @@ def check_diagram(name, model, rep, names):
             if p2 - p1 < SAME_POINT:
                 rep.warn(f"[{name}] {e1}, {e2}", f"these edges meet {shape_id} at the same point on its {side} side and overlap; give each a waypoint at its own height within the side, for example 1/4, 1/2, 3/4")
 
-    # Drawing order: every icon after all edges that share its parent.
+    # Drawing order. draw.io draws a group together with everything in it, at
+    # the group's place among its siblings. So an edge must come before the
+    # icons of its own parent, and before every group that holds icons.
+    parent_of, children = {}, {}
     for el in root:
         cell = cell_of(el)
-        if cell is None or cell.get("vertex") != "1":
+        if cell is not None and el.get("id"):
+            parent_of[el.get("id")] = cell.get("parent")
+            children.setdefault(cell.get("parent"), []).append(el.get("id"))
+    drawn = {}
+
+    def walk(pid):
+        for kid in children.get(pid, []):
+            if kid not in drawn:
+                drawn[kid] = len(drawn)
+                walk(kid)
+    walk(None)
+    for el in root:
+        cell = cell_of(el)
+        icon = el.get("id")
+        if cell is None or cell.get("vertex") != "1" or icon not in drawn:
             continue
         tokens, keys = parse_style(cell.get("style"))
         if not is_icon(tokens, keys):
             continue
-        later = [i for i in edges_by_parent.get(cell.get("parent"), []) if i > order[el.get("id")]]
-        if later:
-            rep.fail(f"[{name}] {el.get('id')}", "icon comes before an edge with the same parent, so the line is drawn over it")
+        holder, seen = icon, set()
+        while parent_of.get(holder) is not None and holder not in seen:
+            seen.add(holder)
+            parent = parent_of[holder]
+            later = [e for e in edges_by_parent.get(parent, []) if drawn.get(e, -1) > drawn[icon]]
+            if later and holder == icon:
+                rep.fail(f"[{name}] {icon}", f"icon comes before edge {later[0]} with the same parent, so the line is drawn over it")
+            elif later:
+                rep.fail(f"[{name}] {icon}", f"edge {later[0]} comes after group {holder}, which holds this icon, so the line is drawn over everything in the group; write the edge before the group")
+            holder = parent
+
+    # An edge belongs to the parent of whichever end is drawn later. Drawn
+    # anywhere else, a group's fill hides the line, or the line covers the
+    # group's icons.
+    for el in root:
+        cell = cell_of(el)
+        if cell is None or cell.get("edge") != "1":
+            continue
+        ends = [parent_of.get(cell.get(k)) for k in ("source", "target")]
+        if None in ends:
+            continue
+        want = max(ends, key=lambda p: drawn.get(p, -1))
+        group = by_id.get(want)
+        if cell.get("parent") == want or group is None or cell_of(group).get("vertex") != "1":
+            continue
+        _, gkeys = parse_style(cell_of(group).get("style"))
+        where = f"[{name}] {el.get('id')}"
+        msg = f"an end of this edge is in group {want}, but the edge is not; set parent=\"{want}\" (waypoints relative to the group) and write it before the group's icons"
+        if gkeys.get("fillColor", "#ffffff").lower() != "none":
+            rep.fail(where, msg + ", or the group's fill hides the line")
+        else:
+            rep.warn(where, msg)
 
 
 def main():
@@ -353,6 +525,7 @@ def main():
     ap.add_argument("--find", metavar="TERM", nargs="+", help="list icon paths and stencil names that contain each TERM, then stop")
     ap.add_argument("--drawio-asar", help="path to draw.io's app.asar, for the icon path check")
     ap.add_argument("--expect-tabs", help="comma-separated tab names, in order, that the file should have")
+    ap.add_argument("--no-render", action="store_true", help="skip rendering with draw.io, and with it the check for lines on top of each other")
     args = ap.parse_args()
 
     asar = find_asar(args.drawio_asar)
@@ -418,6 +591,26 @@ def main():
 
     for name, model in diagrams:
         check_diagram(name, model, rep, names)
+
+    # Lines on top of each other only show in the routes draw.io computes, so
+    # render each tab and compare the straight stretches of its lines.
+    binary = None if args.no_render else find_drawio_binary(asar)
+    if not args.no_render and binary is None:
+        rep.warn("render", "draw.io desktop not found; lines on top of each other were not checked")
+    for page, (name, model) in enumerate(diagrams if binary else [], start=1):
+        edge_ids = {c.get("id") for c in model.iter("mxCell") if c.get("edge") == "1"}
+        if len(edge_ids) < 2:
+            continue
+        try:
+            lines = rendered_lines(binary, os.path.abspath(args.file), page, edge_ids)
+        except (OSError, RuntimeError, subprocess.SubprocessError, ET.ParseError) as err:
+            rep.warn(f"[{name}] render", f"draw.io could not render this tab ({err}); lines on top of each other were not checked")
+            continue
+        for (e1, e2), (dist, length) in sorted(overlapping_lines(lines).items()):
+            if dist < OVERLAP_DISTANCE:
+                rep.fail(f"[{name}] {e1}, {e2}", f"these lines run on top of each other for about {length:.0f} px, so one hides the other; move a shape, or give one of them a waypoint so they run at least 30 px apart")
+            else:
+                rep.warn(f"[{name}] {e1}, {e2}", f"these lines run only {dist:.0f} px apart for about {length:.0f} px and read as one thick line; keep parallel lines at least 30 px apart")
 
     print("\n".join(rep.lines) if rep.lines else "No findings.")
     print(f"{len(diagrams)} tab(s), {rep.fails} failure(s), {len(rep.lines) - rep.fails} warning(s).")
