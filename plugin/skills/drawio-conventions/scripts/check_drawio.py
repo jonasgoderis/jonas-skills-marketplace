@@ -6,7 +6,7 @@ Usage: check_drawio.py <file.drawio> [--drawio-asar PATH] [--expect-tabs NAME,NA
 
 It reads the file from disk, so it checks what was really written, not what
 the caller meant to write. It covers the general rules (A and B, flat look,
-drawing order, file format, tabs, arrow heads, group resizing, note autosize, layout of connected shapes, lines that share
+drawing order, file format, tabs, dash pattern, arrow heads, group resizing, note autosize, layout of connected shapes, lines that share
 a start point, icon names, icon label position, label fit, note size). When
 draw.io desktop is installed, it also renders each tab to SVG and reports
 lines that run on top of each other and lines that run through a label. It does not
@@ -395,6 +395,8 @@ def check_diagram(name, model, rep, names):
             rep.fail(where, "gradientColor breaks the flat look")
         if tokens & THEME_TOKENS:
             rep.fail(where, f"theme class {sorted(tokens & THEME_TOKENS)} adds shadow, glass and gradient")
+        if keys.get("dashed") == "1" and keys.get("dashPattern"):
+            rep.warn(where, f"dashPattern={keys['dashPattern']} gives longer dashes than the house style; remove dashPattern so draw.io draws its first dashed option, short dashes close together")
 
         if cell.get("edge") == "1":
             edges_by_parent.setdefault(cell.get("parent"), []).append(cid)

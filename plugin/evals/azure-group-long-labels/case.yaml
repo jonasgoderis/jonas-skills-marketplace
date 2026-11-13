@@ -8,7 +8,8 @@ description: >
   page-level edges come before the group so no line covers an icon label. Long
   icon labels are split over lines. The webhook is its own edge, not a second
   arrow head on the call, and the group keeps its icons in place on resize
-  (recursiveResize=0). Checked on the file. Lines on top
+  (recursiveResize=0). Its dashed border uses draw.io's first dashed option:
+  dashed=1 without a dashPattern. Checked on the file. Lines on top
   of each other only show in a render, so the case relies on the script for
   those.
 context:
