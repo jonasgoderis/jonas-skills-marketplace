@@ -4,7 +4,8 @@ tags: [behaviour, drawio-conventions]
 description: >
   One shape with four outgoing edges, plus two notes of very different length.
   The four lines must start at their own points (one waypoint each, with
-  followTerminals=1), and each note gets autosize=1 so it is sized to its own
-  text. Checked on the file.
+  followTerminals=1). Each note is sized to its own text and has no
+  autosize=1, because draw.io would then resize it on every text edit. Checked
+  on the file.
 context:
   scaffold_script: scaffold.sh

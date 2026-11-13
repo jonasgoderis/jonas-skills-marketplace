@@ -112,6 +112,7 @@ stroke, `shadow=1` and `glass=1` at once. The `plain-*` variants, such as
 | `aspect` | `variable`, `fixed` | `variable` | `fixed` keeps the width-to-height ratio. |
 | `whiteSpace` | `wrap`, `nowrap` | — | `wrap` lets the label wrap inside the shape. |
 | `container` | `0`, `1` | `0` | Makes the shape a container. Cells with `parent="<its id>"` sit inside it and move with it. |
+| `recursiveResize` | `0`, `1` | `1` | With `1`, resizing a shape that has children also scales and moves the children. With `0`, the children keep their size and place. Not used by swimlanes or shapes with a `childLayout`. |
 | `html` | `0`, `1` | `1` | Allows HTML in the label. |
 
 ## Perimeters
@@ -165,7 +166,7 @@ an earlier one.
 | `verticalAlign` | `top`, `middle`, `bottom` | `middle` | Vertical text alignment. |
 | `verticalLabelPosition` | `top`, `middle`, `bottom` | `middle` | Puts the whole label above, on or below the shape. |
 | `labelPosition` | `left`, `center`, `right` | `center` | Puts the whole label left of, on or right of the shape. |
-| `autosize` | `0`, `1` | `0` | draw.io resizes the shape to fit its label whenever someone edits the label. It does not resize when the file is opened, so set a fitting size as well. |
+| `autosize` | `0`, `1` | `0` | draw.io resizes the shape to fit its label whenever someone edits the label. It does not resize when the file is opened. The house style leaves it out, also on notes, because the resize moves the shape against its neighbours. |
 | `labelBackgroundColor` | `#RRGGBB`, `none`, `default` | — | A background behind the label, useful on edges. |
 | `defaultLabelBackgroundColor` | `page` | — | With `labelBackgroundColor=default`: no background box. The label is cut out of the edge instead. |
 

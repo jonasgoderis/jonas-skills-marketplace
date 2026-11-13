@@ -12,6 +12,7 @@ The skill has four parts:
 - Rules A and B below are general. They keep a diagram editable, whoever's style it uses.
 - `references/house-style.md` holds the style values: colours, arrow type, label sizes, icon rules. Read it every time this skill fires. The values there are personal choices and may be replaced.
 - `references/style-keys.md` lists the draw.io style keys that matter here. Read it before you use a key you are not sure of. draw.io ignores unknown keys without any error, so a wrong key fails silently.
+- `scripts/spread_edges.py` works out the waypoints for edges that share a side of a shape. Section E says when to run it.
 - `scripts/check_drawio.py` runs the mechanical part of the checklist in section E over the file on disk.
 
 Apply these rules to every edge and shape you add or change. When you edit an existing file, leave untouched cells as they are, even when they break a rule here. The user may have pinned an old edge on purpose, and a change they did not ask for is hard to spot in a diagram. Instead, tell the user which edges break rule A, and offer to fix them.
@@ -83,21 +84,33 @@ A `.drawio` file is often edited by two parties: you, and the user in the draw.i
 
 ## E. Check before you say it is done
 
-Run the script over the file on disk first:
+First let the helper place the waypoints for edges that share a side of a shape:
+
+```bash
+python3 <skill dir>/scripts/spread_edges.py <file.drawio> --write [--edges e1,e2]
+```
+
+Several edges on one side of a shape run on top of each other unless each gets its own start point and its own turn distance (see "Several lines on one side" in `references/house-style.md`). Working those coordinates out by hand is slow and error-prone: in test runs it used up the whole time limit before the diagram was written. So place the shapes, write the edges without waypoints, and let the helper add them. It also keeps lines off the bottom of an icon, where the label is. In an existing file, pass the ids of the edges you added or changed with `--edges`, so the user's own edges stay as they are. When it prints a `NOTE` that a gap or a side is too small, widen the gap or enlarge the shape, and run it again. Run it again after every move of a shape as well: the waypoints belong to the old position, and a stale waypoint makes lines overlap.
+
+Then run the check over the file on disk:
 
 ```bash
 python3 <skill dir>/scripts/check_drawio.py <file.drawio> [--expect-tabs "Tab one,Tab two"]
 ```
 
-It reports every cell in the file, so in an existing file it also reports untouched cells. Fix the findings on your own cells, and report the rest to the user. A `FAIL` breaks a rule. A `WARN` needs a look, because it may be a deliberate exception, such as a fixed point the user asked for. The warnings also point out layout problems: two shapes closer than 80 px, two connected shapes whose centres do not line up, two edges that probably cross without need, several lines that start or end at the same point of a shape, labels too long for their shape or too wide under an icon, and notes much larger than their text. Fix those on your own cells. An icon whose label is not under the picture is a `FAIL`. So is an edge drawn after an icon it can pass over, also when the icon sits inside a group that comes before the edge. An edge with an end inside a group belongs inside that group; outside it, the line disappears under a filled group, which is a `FAIL`.
+It reports every cell in the file, so in an existing file it also reports untouched cells. Fix the findings on your own cells, and report the rest to the user. A `FAIL` breaks a rule. A `WARN` needs a look, because it may be a deliberate exception, such as a fixed point the user asked for. The warnings also point out layout problems: two shapes closer than 80 px, two connected shapes whose centres do not line up, two edges that probably cross without need, several lines that start or end at the same point of a shape, labels too long for their shape or too wide under an icon, notes much larger than their text, notes with `autosize=1`, and groups without `recursiveResize=0`. Fix those on your own cells. An edge with an arrow head at both ends is a `FAIL`: draw one edge per direction. An icon whose label is not under the picture is a `FAIL`. So is an edge drawn after an icon it can pass over, also when the icon sits inside a group that comes before the edge. An edge with an end inside a group belongs inside that group; outside it, the line disappears under a filled group, which is a `FAIL`.
 
-When draw.io desktop is installed, the script also renders each tab to SVG with it, and reads the routes draw.io really draws. Two lines that run on top of each other are a `FAIL`, because one hides the other. Two lines closer than 12 px are a `WARN`. Rendering takes a few seconds per tab. Use `--no-render` only when draw.io hangs, and then say in your report that overlapping lines were not checked.
+When draw.io desktop is installed, the script also renders each tab to SVG with it, and reads the routes and label positions draw.io really draws. Two lines that run on top of each other are a `FAIL`, because one hides the other. So is a line that runs through a label of a shape, an icon or another edge. Two lines closer than 12 px are a `WARN`. Rendering takes a few seconds per tab. Use `--no-render` only when draw.io hangs.
+
+Overlapping lines and lines through labels are what a reader notices first, and the file alone cannot show them. So do not call a diagram done while these checks did not run. If the script says draw.io wrote no SVG, a sandbox probably blocks the app: ask the user to let you run the script outside the sandbox. If the render still cannot run, say clearly at the top of your report that these two checks were not done. Without the render, the script still predicts the two most common causes from the file: lines that start at one point or turn at the same distance, and lines at the bottom of an icon, where its label is.
 
 The script also checks icon names against the installed draw.io app. A wrong image path (`image=img/lib/...`) renders as an empty box without any error, so it is a `FAIL`. Stencil names (`shape=mxgraph....`) get a `WARN` when the script does not know them, because its list of stencils is not complete. If draw.io is not installed, the script says the names were not checked, so say that in your report.
 
 To find the right icon before you write it, run the script with `--find`, for example `--find "api gateway"` or `--find search`. In one call it lists the matching image paths and stencil names. For most stencils it also prints a full style string from draw.io's own code. Copy that string, then add the icon values from `references/house-style.md`, such as the white label background, `whiteSpace=nowrap` and the label position under the icon. Many of draw.io's own strings put the label on the picture or beside it, so replace those keys. Look up all the icons you need in one call, for example `--find "api gateway" lambda rds users`, because each separate call costs a turn.
 
 Do not search the draw.io app files by hand, with `find`, `strings` or by unpacking the archive. The script already reads those files. In test runs, a manual search used up every available turn before the diagram was written. If `--find` finds nothing, use the name you know from the draw.io sidebar, and mention it in your report.
+
+The same holds for the two scripts themselves: do not read their source code. Their output names each problem, the cell and the fix, and that is all you need. Plan the work so that a diagram takes few turns: one `--find` call for all icons, one write, one `spread_edges.py` run, one check, and then one round of fixes. In test runs, separate `--find` calls per icon and reading the scripts cost a third of the available turns.
 
 The script does not know the house-style values, because a user can replace them. Check those by hand with the list below.
 
@@ -109,7 +122,7 @@ The list covers the cells you added or changed. In an existing file, an untouche
 4. *(script)* Every edge style contains `edgeStyle=orthogonalEdgeStyle`, `jumpStyle=arc` and `jumpSize=6`.
 5. Every edge, edge label cell, vertex and icon carries the decided values from `references/house-style.md` that apply to it.
 6. *(script)* Every non-rectangular shape has the matching `perimeter`.
-7. Nothing breaks the spacing, the label rules, the flat look, the icon order, the groups or the file format in `references/house-style.md`. The script covers the flat look, the drawing order of icons and groups, the icon label position, the label lengths, the file format, the note sizes, lines on top of each other, and the spacing, alignment, crossings and shared start points of shapes joined by an edge. Compare the rest by hand, using the `mxGeometry` of neighbouring shapes. Within the 80 to 120 px range, check that busy parts got the wider gaps.
+7. Nothing breaks the spacing, the label rules, the flat look, the icon order, the groups or the file format in `references/house-style.md`. The script covers the flat look, the drawing order of icons and groups, the icon label position, the label lengths, the file format, the note sizes, two-way arrows, group resizing, lines on top of each other, lines through labels, and the spacing, alignment, crossings and shared start points of shapes joined by an edge. Compare the rest by hand, using the `mxGeometry` of neighbouring shapes. Within the 80 to 120 px range, check that busy parts got the wider gaps.
 8. Every style key you used appears in `references/style-keys.md` or in the official reference, and no TBD value was invented.
 
 In your report, say that the script and the checklist passed. Name any deliberate exception, such as a fixed point the user asked for, or a colour per flow. List any untouched edges that break rule A, and offer to fix them.

@@ -23,10 +23,11 @@ a TBD row, so the diagram stays consistent.
 | Edge labels | `labelBackgroundColor`, `defaultLabelBackgroundColor` (on edges with a label) | `default`, `page` | The line is cut out behind the label instead of running through it. |
 | Edge label size | `fontSize` (on edges with a label and on edge label cells) | `12` | Edge labels stay readable. The `edgeLabel` class would set 11. |
 | Icon labels | `labelBackgroundColor` (on icons) | `#FFFFFF` | A white box behind an icon's label, so a line under it does not cross the text. |
+| Group resizing | `recursiveResize` (on groups) | `0` | When someone resizes a group in draw.io, the shapes and icons inside keep their size and place. draw.io's own default `1` scales and moves them with the group. |
 | Label wrapping | `whiteSpace`, `html` (on vertices) | `wrap`, `1` | Long labels wrap inside the shape instead of running over its border. |
 | Icon label wrapping | `whiteSpace`, `html` (on icons) | `nowrap`, `1` | An icon's label sits under the picture. With `wrap`, it can only be as wide as the icon, often 64 px, and becomes a narrow stack of single words. |
 | Icon label position | `verticalLabelPosition`, `verticalAlign`, `labelPosition`, `align` (on icons) | `bottom`, `top`, `center`, `center` | Every icon's label sits centred under the picture, never beside it or on top of it. Many style strings from draw.io's own libraries set no position, which puts the label on the picture, and a few put it to the right. Set these four keys on every icon, also when you copy a style string. |
-| Note size | `width`, `height` (on the note's `mxGeometry`), `autosize` (on notes) | fit the text, `1` | Each note is as large as its own text needs, not as large as the other notes. `autosize=1` makes draw.io resize the note when someone edits its text. See [Labels](#labels). |
+| Note size | `width`, `height` (on the note's `mxGeometry`), `autosize` (on notes) | fit the text, no `autosize` | Each note is as large as its own text needs, not as large as the other notes. Leave `autosize` out. With `autosize=1`, draw.io resizes the note every time someone edits its text, which moves it against its neighbours. See [Labels](#labels). |
 | Colour meanings | `fillColor`, `strokeColor` per kind of element | TBD | A fixed colour for each kind of thing, for example service or data store. |
 | Vertex shape | `shape`, or a bare token such as `ellipse` | TBD | The default box shape. draw.io's own default is a rectangle. |
 | Vertex corners | `rounded` (on vertices) | TBD | Sharp or rounded box corners. |
@@ -85,25 +86,67 @@ two lines, and the reader cannot see which line it belongs to.
   stretch, because then one hides the other. Crossing is fine; the line jump
   shows it. Lines end up on top of each other in three common ways. Two edges
   between the same two shapes in opposite directions take exactly the same
-  route: give each a waypoint so they run at least 30 px apart, or draw one
-  edge with an arrow head at both ends (`startArrow=block`) when it means a
-  two-way connection. Several edges on one side of a shape start at the same
+  route: give each a waypoint so they run at least 30 px apart (see the next
+  item). Several edges on one side of a shape start at the same
   point: see the next item. Two edges between different shapes can pick the
   same corridor between two columns: move a shape, or add a waypoint to one of
   them. The script renders the diagram and reports every such stretch.
+- **One direction per edge:** an edge carries one flow, in one direction, with
+  one arrow head at its end. When data also flows back, for example a response
+  or a callback, draw a second edge from the other shape. Do not draw one edge
+  with an arrow head at both ends (`startArrow`). A two-way arrow hides which
+  side starts the exchange, and it leaves no room for a step number or a label
+  per direction. `scripts/spread_edges.py` places the waypoints for such a pair
+  too. Without waypoints, the two edges take exactly the same route
+  and one hides the other. Give each edge two waypoints, one about 40 px from
+  each shape, both on its own line: for shapes side by side, the first edge
+  runs about 15 px above the centre line and the second about 15 px below it.
+  Each edge then draws as one straight line, 30 px from the other, and both
+  labels stay free. One waypoint per edge is not enough here: draw.io then
+  bends each line back to the centre line before its target, and the two
+  labels end up on those bends. Add `followTerminals=1`, so the waypoints move
+  along when someone drags a shape. The script reports an edge with a head at
+  both ends.
+- **No line through a label:** a line must not run through the text of a shape,
+  an icon or another edge's label. The text then becomes hard to read, and the
+  reader cannot tell which line the text belongs to. An edge label may move
+  along its own line (see Label position). For a shape or icon label, route
+  the line around it with a waypoint, or let the line reach its shape from a
+  side without a label: an icon's label sits under the picture, so a line that
+  leaves or enters an icon at the bottom runs through it. Connect icons on
+  their left, right or top side. The script renders the diagram and reports
+  every line that crosses a label. It also reports lines at the bottom of an
+  icon when draw.io cannot render.
 - **Several lines on one side:** when two or more edges leave or enter the
   same side of a shape, draw.io starts them all at the middle of that side.
   They then overlap and read as one line. Give each of these edges one
-  waypoint, about 40 px outside the shape, at its own height within that
-  side. For three edges on the right side, use 1/4, 1/2 and 3/4 of the shape's
-  height. With a waypoint, draw.io's orthogonal router leaves the shape at the
-  waypoint's height, so each line gets its own start point. For a top or bottom
-  side, spread the `x` values in the same way. Order the waypoints like the
-  targets, so the lines do not cross: the edge to the highest target leaves
-  highest. Add `followTerminals=1` to these edges, so draw.io moves the
-  waypoints along when someone drags the shape. Do not use `exitY` or `entryY`
-  for this, because rule A forbids fixed points. One waypoint per edge is
-  enough: draw.io still ends the line straight at the centre of its target.
+  waypoint, with two coordinates chosen as follows.
+  - **Its own point along the side.** For three edges on the right side, use
+    1/4, 1/2 and 3/4 of the shape's height. For a top or bottom side, spread
+    the `x` values in the same way. The waypoint must lie within the side's
+    span. draw.io's orthogonal router then leaves the shape at the waypoint's
+    height (or `x`), so each line gets its own start point. A waypoint beyond
+    a corner, for example straight above or below a target that sits further
+    out, does not work: draw.io then starts every line from the middle of the
+    side again. Order the waypoints like the targets, so the lines do not
+    cross: the edge to the highest target leaves highest.
+  - **Its own distance from the shape.** After its waypoint, each line turns
+    towards its target. Lines that turn the same way at the same distance run
+    on top of each other along that stretch. So nest the turns: the edge that
+    leaves nearest a corner of the side turns first, about 40 px out. The next
+    edge towards the middle turns 30 px further out, and so on. Edges that turn
+    in opposite directions may share a distance. Example: four edges leave the
+    bottom of a gateway to four services in a row below it. The two outer edges
+    get their waypoints 40 px below the gateway, the two inner edges 70 px
+    below it.
+
+  Add `followTerminals=1` to these edges, so draw.io moves the waypoints along
+  when someone drags the shape. Do not use `exitY` or `entryY` for this,
+  because rule A forbids fixed points. One waypoint per edge is enough: draw.io
+  still ends the line straight at the centre of its target. The script reports
+  lines that share a start point and turns at the same distance, also when
+  draw.io cannot render. `scripts/spread_edges.py` computes these waypoints,
+  so write the edges without them and run it, as described in `SKILL.md`.
 - **Stacked lists:** items in a stack without edges between them, such as a
   column of queue boxes or a list of steps, may sit 10 to 20 px apart. The
   80 px minimum exists to leave room for lines and their labels. Without lines,
@@ -121,8 +164,10 @@ two lines, and the reader cannot see which line it belongs to.
   line gives a small zigzag just before the arrow head. Keep the last waypoint
   at least 30 px from the target's outline. draw.io ignores `targetJettySize`
   on an edge with waypoints, so the waypoint itself must leave the straight end.
-  The exception is several edges that enter the same side of the target: their
-  last waypoints spread along that side, as described above.
+  There are two exceptions. Several edges that enter the same side of the
+  target spread their last waypoints along that side. Two edges in opposite
+  directions between the same shapes each keep their own line, 15 px from the
+  centre line. Both are described above.
 
 ## Layout
 
@@ -165,8 +210,10 @@ diagram is cramped, tell the user and offer to space it out.
   diagram looks unfinished. Estimate the width as about 6 px per character of
   the longest line at `fontSize=12`, plus 20 px, and stop at about 300 px. Let
   longer lines wrap inside that width. Estimate the height as about 18 px per
-  line, plus 20 px. Add `autosize=1`, so the note keeps fitting when someone
-  edits its text in draw.io.
+  line, plus 20 px. Do not add `autosize=1`. It makes draw.io resize the note
+  every time someone edits its text, and the user then has to fix the layout
+  around it by hand. A fixed size with `whiteSpace=wrap` keeps the note in
+  place, and its text wraps inside it.
 - **Numbered steps:** in a diagram that shows a flow in order, start each edge
   label with its step number: `1`, `2`, `3`. Steps that happen in parallel
   share a number with a letter: `6a`, `6b`. The reader can then follow the flow
@@ -176,9 +223,12 @@ diagram is cramped, tell the user and offer to space it out.
 ## Groups
 
 Draw a group, such as a resource group, a network or a team boundary, as a real
-container: a dashed rectangle with `container=1`, and the shapes inside it with
-`parent="<group id>"`. The group may have a fill. Moving the group in draw.io
-then moves everything in it. A plain rectangle drawn behind the shapes looks
+container: a dashed rectangle with `container=1;recursiveResize=0;`, and the
+shapes inside it with `parent="<group id>"`. The group may have a fill. Moving
+the group in draw.io then moves everything in it. `recursiveResize=0` matters
+when someone enlarges the group in draw.io: without it, draw.io scales and moves
+every shape and icon inside along with the group, and the user has to put them
+back by hand. draw.io's own group shapes, such as the AWS groups, set it too. A plain rectangle drawn behind the shapes looks
 the same, but leaves its contents behind when someone moves it.
 
 draw.io draws a group together with everything in it, at the group's own place
