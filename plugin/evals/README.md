@@ -154,6 +154,32 @@ check for lines on top of each other renders with draw.io, which does not
 work inside the eval sandbox, so no case covers it. The decisions are in
 `docs/plans/2026-11-05-drawio-conventions-labels-and-overlaps.md`.
 
+Arrows, notes, groups and waypoint helper update (v1.18.0), 3 runs each, same
+models, recorded 2026-11-13. After every round, each diagram was also checked
+outside the sandbox with `check_drawio.py`, including the render:
+
+| Selection | Graders | Clean in render | Cost |
+| --- | --- | --- | --- |
+| `gateway-fan-out-notes`, first round | 3/3 at 1.00 | 0 of 3 | $1.32 |
+| `azure-group-long-labels`, first round | 3/3 at 1.00 | 0 of 3 | $1.95 |
+| `gateway-fan-out-notes`, final round | 3/3 at 1.00 | 3 of 3 | $1.33 |
+| `azure-group-long-labels`, final round | 3/3 at 1.00 | 2 of 3 | $1.29 |
+
+The first round is the warning for this suite: every grader passed, and every
+diagram still had lines on top of each other or lines through an icon label.
+A regex cannot see a route. The script now predicts the common causes from the
+file without draw.io, so the agent sees them inside the sandbox, but no grader
+runs the script. Until one does, check the kept diagrams with the script after
+a run that changes layout rules (`--keep-temp`, then copy the `.drawio` files
+out of the sealed folder).
+
+`gateway-fan-out-notes` now checks that no note has `autosize=1`.
+`azure-group-long-labels` now checks that no edge has an arrow head at both
+ends and that every group has `recursiveResize=0`. The Azure case hits its
+300 s limit in 2 of 3 runs, after it has written a passing file. The full
+history of the five rounds is in
+`docs/plans/2026-11-13-drawio-conventions-arrows-notes-groups.md`.
+
 `drawio-export-png` ends on the eight-turn cap after trying to render. That is
 expected and does not affect the score: the grader only asks whether the skill
 was called.
