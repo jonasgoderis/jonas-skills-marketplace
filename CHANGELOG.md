@@ -1,6 +1,25 @@
 # Changelog
 
 
+## [1.18.0] - 2026-11-13
+
+### Added
+
+- **drawio-conventions waypoint helper.** `scripts/spread_edges.py` gives edges that share a side of a shape their own start point and their own turn distance, so they no longer run on top of each other. It keeps lines off the bottom of an icon, where the label sits, moves extra lines from a full side to a free one, and prints a note when a gap or shape is too small. `--edges` limits it to the edges Claude added in an existing file.
+
+### Changed
+
+- drawio-conventions: an edge carries one flow in one direction. Data that flows back gets its own edge, and an edge with an arrow head at both ends is a failure. The house style no longer suggests a two-way arrow.
+- drawio-conventions: lines that leave one side of a shape turn at nested distances, 40 px and then 30 px further for each next line, and their waypoints stay within the side. One shared distance made lines that turned the same way overlap.
+- drawio-conventions: notes keep a fixed size and no longer get `autosize=1`, which made draw.io resize a note every time its text was edited.
+- drawio-conventions: groups get `recursiveResize=0`, so enlarging a group in draw.io leaves the icons inside at their size and place.
+- drawio-conventions: lines connect to icons on the left, right or top side, not through the label under the icon.
+- drawio-conventions: `check_drawio.py` reports a line that runs through the label of a shape, an icon or another edge, using the label positions from draw.io's render. Without a render, it still reports lines that share a start point, lines that turn at the same distance and lines at the bottom of an icon. It also warns about notes with `autosize=1` and groups without `recursiveResize=0`. The skill asks to run the check outside a sandbox when draw.io cannot render, instead of calling the diagram done.
+
+### Fixed
+
+- drawio-conventions: the label-fit check no longer warns about edge-label cells as if they were shapes of 0 px.
+
 ## [1.17.0] - 2026-11-05
 
 ### Changed
