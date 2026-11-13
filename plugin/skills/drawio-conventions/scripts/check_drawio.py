@@ -6,10 +6,10 @@ Usage: check_drawio.py <file.drawio> [--drawio-asar PATH] [--expect-tabs NAME,NA
 
 It reads the file from disk, so it checks what was really written, not what
 the caller meant to write. It covers the general rules (A and B, flat look,
-drawing order, file format, tabs, layout of connected shapes, lines that share
+drawing order, file format, tabs, arrow heads, group resizing, note autosize, layout of connected shapes, lines that share
 a start point, icon names, icon label position, label fit, note size). When
 draw.io desktop is installed, it also renders each tab to SVG and reports
-lines that run on top of each other. It does not
+lines that run on top of each other and lines that run through a label. It does not
 know the other house-style values, because a user can replace them: compare those by
 hand against references/house-style.md.
 
@@ -179,8 +179,12 @@ def path_segments(d):
     return segs
 
 
-def rendered_lines(binary, path, page, edge_ids):
-    """Render one tab with draw.io and return {edge id: [segments]}."""
+def rendered(binary, path, page, edge_ids):
+    """Render one tab with draw.io.
+
+    Return ({edge id: [segments]}, {cell id: label box}). A label box is
+    (x0, y0, x1, y1) around the text as draw.io draws it.
+    """
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "page.svg")
         subprocess.run([binary, "-x", "-f", "svg", "-p", str(page), "-o", out, path],
@@ -188,18 +192,79 @@ def rendered_lines(binary, path, page, edge_ids):
         if not os.path.exists(out):
             raise RuntimeError("draw.io wrote no SVG; a sandbox may block it")
         svg = ET.parse(out).getroot()
-    lines = {}
+    lines, labels = {}, {}
 
     def walk(el, owner):
         owner = el.get("data-cell-id", owner)
-        if el.tag.endswith("path") and owner in edge_ids and owner not in lines:
+        tag = el.tag.rsplit("}", 1)[-1]
+        if tag == "path" and owner in edge_ids and owner not in lines:
             d = el.get("d", "")
             if "Z" not in d.upper():  # arrow heads are closed shapes
                 lines[owner] = path_segments(d)
+        if tag == "switch" and owner:
+            box = label_box(el)
+            if box:
+                labels[owner] = box
         for child in el:
             walk(child, owner)
     walk(svg, None)
-    return lines
+    return lines, labels
+
+
+def label_box(switch):
+    """The box around a label's text, from the fallback image that draw.io
+    writes after each HTML label. The image is as wide as the label's room,
+    which for a wrapped label is the whole shape, so narrow it to the text."""
+    image = next((c for c in switch if c.tag.endswith("image")), None)
+    if image is None:
+        return None
+    try:
+        x, y, w, h = (float(image.get(k)) for k in ("x", "y", "width", "height"))
+    except (TypeError, ValueError):
+        return None
+    divs = [d for d in switch.iter() if d.tag.endswith("div")]
+    if divs:
+        inner = divs[-1]
+        texts = [inner.text or ""] + [c.tail or "" for c in inner]
+        size = re.search(r"font-size:\s*([\d.]+)px", inner.get("style", ""))
+        size = float(size.group(1)) if size else 12
+        text_w = max(len(t.strip()) for t in texts) * CHAR_WIDTH * size / 12
+        if 0 < text_w < w:
+            align = re.search(r"text-align:\s*(\w+)", divs[1].get("style", "") if len(divs) > 1 else "")
+            align = align.group(1) if align else "center"
+            if align == "left":
+                w = text_w
+            elif align == "right":
+                x, w = x + w - text_w, text_w
+            else:
+                x, w = x + (w - text_w) / 2, text_w
+    return (x, y, x + w, y + h)
+
+
+def crosses_box(seg, box, inset=3):
+    """True when a straight segment passes through the box (Liang-Barsky clip).
+
+    The inset ignores the box's outer pixels: draw.io's label box includes the
+    extra line height above and below the text."""
+    x1, y1, x2, y2 = seg
+    bx0, by0, bx1, by1 = box[0] + inset, box[1] + inset, box[2] - inset, box[3] - inset
+    if bx0 >= bx1 or by0 >= by1:
+        return False
+    dx, dy = x2 - x1, y2 - y1
+    t0, t1 = 0.0, 1.0
+    for p, q in ((-dx, x1 - bx0), (dx, bx1 - x1), (-dy, y1 - by0), (dy, by1 - y1)):
+        if p == 0:
+            if q < 0:
+                return False
+            continue
+        t = q / p
+        if p < 0:
+            t0 = max(t0, t)
+        else:
+            t1 = min(t1, t)
+        if t0 > t1:
+            return False
+    return True
 
 
 def overlapping_lines(lines):
@@ -253,8 +318,9 @@ def attach(shape, aim, waypoint):
 
     `aim` is the edge's waypoint next to the shape, or the other shape's
     centre. With a waypoint, draw.io's orthogonal router leaves the shape at the
-    waypoint's height (or x) when that lies within the shape. Without one, it
-    starts from the middle of the side that faces the other shape.
+    waypoint's height (or x) when that lies within the shape, and from the
+    middle of the top or bottom side when it lies beyond a corner. Without a
+    waypoint, it starts from the middle of the side that faces the other shape.
     """
     x, y, w, h = shape
     cx, cy = centre(shape)
@@ -263,7 +329,12 @@ def attach(shape, aim, waypoint):
             return ("right" if aim[0] > cx else "left"), aim[1]
         if x <= aim[0] <= x + w and not y <= aim[1] <= y + h:
             return ("bottom" if aim[1] > cy else "top"), aim[0]
-        return None
+        if x <= aim[0] <= x + w and y <= aim[1] <= y + h:
+            return None  # a waypoint inside the shape
+        # A waypoint beyond a corner: in renders, draw.io always left from the
+        # middle of the top or bottom side, also when the waypoint lay further
+        # sideways than up or down.
+        return ("bottom" if aim[1] > cy else "top"), cx
     dx, dy = aim[0] - cx, aim[1] - cy
     if abs(dx) >= abs(dy):
         return ("right" if dx > 0 else "left"), cy
@@ -308,6 +379,7 @@ def check_diagram(name, model, rep, names):
     edges_by_parent = {}
     flows = []
     ends = {}  # (shape id, side) -> [(edge id, position along the side)]
+    turns = {}  # (shape id, side) -> [(edge id, waypoint, centre of the other shape)]
     for el in root:
         cid = el.get("id")
         cell = cell_of(el)
@@ -343,6 +415,8 @@ def check_diagram(name, model, rep, names):
             for k, v in REQUIRED_EDGE_KEYS.items():
                 if keys.get(k) != v:
                     rep.fail(where, f"edge style needs {k}={v}")
+            if keys.get("startArrow", "none") not in ("none", "") and keys.get("endArrow") != "none":
+                rep.fail(where, "edge has an arrow head at both ends; draw one edge per direction, so each line shows one flow")
             label = cell.get("value") or ""
             lines = len(text_lines(label))
             if lines > MAX_LABEL_LINES:
@@ -375,7 +449,10 @@ def check_diagram(name, model, rep, names):
                                 (tgt, b, pts[-1] if pts else centre(a), bool(pts))):
                             spot = attach(shape, aim, wp)
                             if spot:
-                                ends.setdefault((shape_id, spot[0]), []).append((cid, spot[1]))
+                                ends.setdefault((shape_id, spot[0]), []).append((cid, spot[1], wp))
+                            if spot and len(pts) == 1:
+                                far = centre(b) if shape is a else centre(a)
+                                turns.setdefault((shape_id, spot[0]), []).append((cid, pts[0], far))
             continue
 
         if cell.get("vertex") != "1":
@@ -401,7 +478,10 @@ def check_diagram(name, model, rep, names):
                         and keys.get("labelPosition", "center") == "center")
         lines = text_lines(cell.get("value"))
         g = geom(cid)
-        if lines and g and not is_note and keys.get("container") != "1":
+        # An edge label cell has a relative geometry of size 0; it sits on its line.
+        on_edge = (cell.find("mxGeometry") is not None
+                   and cell.find("mxGeometry").get("relative") == "1")
+        if lines and g and not is_note and not on_edge and keys.get("container") != "1":
             char_w = CHAR_WIDTH * float(keys.get("fontSize") or 12) / 12
             widest = max(len(line) for line in lines) * char_w
             if is_icon(tokens, keys):
@@ -426,6 +506,10 @@ def check_diagram(name, model, rep, names):
                     rep.warn(where, f"label needs about {rows} lines; keep it to {MAX_LABEL_LINES} by widening the shape, shortening the label or moving detail into a note")
                 elif rows * line_h + 10 > g[3]:
                     rep.warn(where, f"label needs about {rows} lines but the shape is only {g[3]:.0f} px high, so the text runs over its border; make the shape taller or wider")
+        if is_note and keys.get("autosize") == "1":
+            rep.warn(where, "autosize=1 makes draw.io resize the note every time its text is edited; remove it and give the note a fixed size")
+        if cell.get("vertex") == "1" and keys.get("container") == "1" and keys.get("recursiveResize") != "0":
+            rep.warn(where, "group without recursiveResize=0: resizing it in draw.io also resizes and moves the shapes inside; add recursiveResize=0")
         # A note sized to fit its text, not to match the other notes.
         if is_note and cell.get("value"):
             g = geom(cid)
@@ -456,9 +540,46 @@ def check_diagram(name, model, rep, names):
     # and read as one line. A waypoint per edge at its own height spreads them.
     for (shape_id, side), spots in ends.items():
         spots.sort(key=lambda s: s[1])
-        for (e1, p1), (e2, p2) in zip(spots, spots[1:]):
+        for (e1, p1, w1), (e2, p2, w2) in zip(spots, spots[1:]):
             if p2 - p1 < SAME_POINT:
-                rep.warn(f"[{name}] {e1}, {e2}", f"these edges meet {shape_id} at the same point on its {side} side and overlap; give each a waypoint at its own height within the side, for example 1/4, 1/2, 3/4")
+                # With waypoints on both edges the shared point is certain;
+                # without, the side is a guess.
+                (rep.fail if w1 and w2 else rep.warn)(f"[{name}] {e1}, {e2}", f"these edges meet {shape_id} at the same point on its {side} side and overlap; give each a waypoint at its own height within the side, for example 1/4, 1/2, 3/4")
+
+    # Edges that spread along one side with one waypoint each still overlap
+    # when two of them turn the same way at the same distance from the shape:
+    # draw.io runs both along that row towards their other shape. This needs
+    # no render, so it also works where draw.io cannot run.
+    for (shape_id, side), items in turns.items():
+        across = 1 if side in ("top", "bottom") else 0  # the row is a y (or an x)
+        along = 1 - across
+        for i, (e1, w1, f1) in enumerate(items):
+            for e2, w2, f2 in items[i + 1:]:
+                if abs(w1[across] - w2[across]) >= OVERLAP_DISTANCE:
+                    continue
+                d1, d2 = f1[along] - w1[along], f2[along] - w2[along]
+                if d1 * d2 <= 0:
+                    continue  # they turn in opposite directions
+                lo = max(min(w1[along], f1[along]), min(w2[along], f2[along]))
+                hi = min(max(w1[along], f1[along]), max(w2[along], f2[along]))
+                if hi - lo >= MIN_OVERLAP:
+                    rep.fail(f"[{name}] {e1}, {e2}", f"these edges leave {shape_id} on its {side} side and turn the same way at the same distance, so they run on top of each other for about {hi - lo:.0f} px; nest the turns: the edge that leaves nearest the corner turns first, about 40 px out, the next one 30 px further")
+
+    # An icon's label sits under the picture, so a line that leaves or enters
+    # an icon at the bottom runs through the label. This needs no render.
+    through_label = set()
+    for (shape_id, side), spots in ends.items():
+        if side != "bottom" or shape_id not in by_id:
+            continue
+        icell = cell_of(by_id[shape_id])
+        tokens, keys = parse_style(icell.get("style"))
+        if not (is_icon(tokens, keys) and icell.get("value")
+                and keys.get("verticalLabelPosition") == "bottom"):
+            continue
+        for eid, _, wp in spots:
+            if wp:  # certain, so the render need not report it again
+                through_label.add((eid, shape_id))
+            (rep.fail if wp else rep.warn)(f"[{name}] {eid}", f"this line meets icon {shape_id} at the bottom, where its label is, and runs through the text; let it reach the icon from the left, right or top, with a waypoint if needed, or move a shape")
 
     # Drawing order. draw.io draws a group together with everything in it, at
     # the group's place among its siblings. So an edge must come before the
@@ -517,6 +638,7 @@ def check_diagram(name, model, rep, names):
             rep.fail(where, msg + ", or the group's fill hides the line")
         else:
             rep.warn(where, msg)
+    return through_label
 
 
 def main():
@@ -589,8 +711,9 @@ def main():
         if want != have:
             rep.fail("tabs", f"expected {want}, found {have}")
 
+    known = {}  # tab -> (edge, icon) pairs already reported as through the label
     for name, model in diagrams:
-        check_diagram(name, model, rep, names)
+        known[name] = check_diagram(name, model, rep, names) or set()
 
     # Lines on top of each other only show in the routes draw.io computes, so
     # render each tab and compare the straight stretches of its lines.
@@ -602,15 +725,29 @@ def main():
         if len(edge_ids) < 2:
             continue
         try:
-            lines = rendered_lines(binary, os.path.abspath(args.file), page, edge_ids)
+            lines, labels = rendered(binary, os.path.abspath(args.file), page, edge_ids)
         except (OSError, RuntimeError, subprocess.SubprocessError, ET.ParseError) as err:
-            rep.warn(f"[{name}] render", f"draw.io could not render this tab ({err}); lines on top of each other were not checked")
+            rep.warn(f"[{name}] render", f"draw.io could not render this tab ({err}); lines on top of each other and lines through labels were not checked")
             continue
         for (e1, e2), (dist, length) in sorted(overlapping_lines(lines).items()):
             if dist < OVERLAP_DISTANCE:
                 rep.fail(f"[{name}] {e1}, {e2}", f"these lines run on top of each other for about {length:.0f} px, so one hides the other; move a shape, or give one of them a waypoint so they run at least 30 px apart")
             else:
                 rep.warn(f"[{name}] {e1}, {e2}", f"these lines run only {dist:.0f} px apart for about {length:.0f} px and read as one thick line; keep parallel lines at least 30 px apart")
+        # A line through a label hides the text. An edge's own label sits on
+        # its own line by design, so skip that pair.
+        parent = {c.get("id"): c.get("parent") for c in model.iter("mxCell")}
+        for owner, box in sorted(labels.items()):
+            for eid, segs in sorted(lines.items()):
+                if eid == owner or parent.get(owner) == eid or (eid, owner) in known.get(name, ()):
+                    continue
+                if not any(crosses_box(seg, box) for seg in segs):
+                    continue
+                if owner in edge_ids or parent.get(owner) in edge_ids:
+                    fix = "move that label along its own line (mxGeometry x between -1 and 1), or give this line a waypoint around it"
+                else:
+                    fix = "give this line a waypoint around the label, let it reach its shape from another side, or move a shape"
+                rep.fail(f"[{name}] {eid}", f"this line runs through the label of {owner}, so the text is hard to read; {fix}")
 
     print("\n".join(rep.lines) if rep.lines else "No findings.")
     print(f"{len(diagrams)} tab(s), {rep.fails} failure(s), {len(rep.lines) - rep.fails} warning(s).")
