@@ -1,6 +1,13 @@
 # Changelog
 
 
+## [1.19.0] - 2026-11-18
+
+### Changed
+
+- drawio-conventions: dashed group boxes get a grey border, `strokeColor=#999999`, the same grey as the lines.
+- drawio-conventions: a group's name goes in a separate text cell inside the group, in the top-left corner, instead of in the group's own label. The text cell moves with the group and can be dragged on its own in draw.io. `check_drawio.py` warns about a dashed group with another border colour or with its own label.
+
 ## [1.18.1] - 2026-11-18
 
 ### Changed
