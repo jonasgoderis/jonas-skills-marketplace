@@ -185,6 +185,13 @@ that no cell combines `dashed=1` with a `dashPattern`, so the group border
 uses draw.io's shortest dash. The last round's diagrams already pass it, so
 the case was not rerun.
 
+Group border and label update (v1.19.0), 3 runs, same models, recorded
+2026-11-18: `azure-group-long-labels` scored 0.97 for $1.37. It now also
+checks that a dashed group has `strokeColor=#999999`, that the group has no
+label of its own, and that a text cell inside the group carries its name. All
+three runs passed those graders. One run hit the 300 s limit before it split
+a long icon label. In the render, no line crossed the new group label.
+
 `drawio-export-png` ends on the eight-turn cap after trying to render. That is
 expected and does not affect the score: the grader only asks whether the skill
 was called.

@@ -9,8 +9,9 @@ description: >
   icon labels are split over lines. The webhook is its own edge, not a second
   arrow head on the call, and the group keeps its icons in place on resize
   (recursiveResize=0). Its dashed border uses draw.io's first dashed option:
-  dashed=1 without a dashPattern. Checked on the file. Lines on top
-  of each other only show in a render, so the case relies on the script for
-  those.
+  dashed=1 without a dashPattern, and the colour #999999. The group's name is
+  a separate text cell inside the group, not the group's own label. Checked on
+  the file. Lines on top of each other only show in a render, so the case
+  relies on the script for those.
 context:
   scaffold_script: scaffold.sh
