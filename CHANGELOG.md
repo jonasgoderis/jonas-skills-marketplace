@@ -1,6 +1,12 @@
 # Changelog
 
 
+## [1.18.1] - 2026-11-18
+
+### Changed
+
+- drawio-conventions: dashed lines and group borders use draw.io's shortest dash, the first "Dashed" option in the line-style menu. That is `dashed=1` without a `dashPattern`. `check_drawio.py` warns about a dashed line that sets a `dashPattern`.
+
 ## [1.18.0] - 2026-11-13
 
 ### Added

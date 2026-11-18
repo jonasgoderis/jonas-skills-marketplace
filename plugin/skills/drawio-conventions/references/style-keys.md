@@ -89,7 +89,7 @@ Arrow types: `none`, `classic`, `classicThin`, `block`, `blockThin`, `open`,
 | `strokeColor` | `#RRGGBB`, `none`, `default` | `default` | The border or line colour. |
 | `strokeWidth` | number | `1` | The border or line width in pixels. |
 | `dashed` | `0`, `1` | `0` | A dashed border or line. |
-| `dashPattern` | string such as `8 8` | — | The dash and gap lengths. |
+| `dashPattern` | string such as `8 8` | — | The dash and gap lengths. Without it, `dashed=1` draws draw.io's default short dash, which is the first dashed option in the line-style menu. Lengths are multiplied by `strokeWidth` unless `fixDash=1`. |
 | `opacity` | `0`–`100` | `100` | The opacity of the whole cell. |
 | `shadow` | `0`, `1` | `0` | A drop shadow. The house style keeps it off. |
 | `gradientColor` | `#RRGGBB`, `none` | `none` | A gradient from `fillColor` to this colour. The house style does not use it. |

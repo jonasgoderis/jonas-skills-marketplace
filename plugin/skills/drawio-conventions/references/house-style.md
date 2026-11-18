@@ -23,6 +23,7 @@ a TBD row, so the diagram stays consistent.
 | Edge labels | `labelBackgroundColor`, `defaultLabelBackgroundColor` (on edges with a label) | `default`, `page` | The line is cut out behind the label instead of running through it. |
 | Edge label size | `fontSize` (on edges with a label and on edge label cells) | `12` | Edge labels stay readable. The `edgeLabel` class would set 11. |
 | Icon labels | `labelBackgroundColor` (on icons) | `#FFFFFF` | A white box behind an icon's label, so a line under it does not cross the text. |
+| Dashed lines | `dashed`, `dashPattern` (on dashed edges and borders) | `dashed=1`, no `dashPattern` | Every dashed line, including a group's border, uses draw.io's first dashed option, "Dashed (1)": short dashes close together. The other options (`dashPattern=8 8`, `12 12`, `8 4 1 4`) give longer dashes with wider gaps. The dash length grows with `strokeWidth`. |
 | Group resizing | `recursiveResize` (on groups) | `0` | When someone resizes a group in draw.io, the shapes and icons inside keep their size and place. draw.io's own default `1` scales and moves them with the group. |
 | Label wrapping | `whiteSpace`, `html` (on vertices) | `wrap`, `1` | Long labels wrap inside the shape instead of running over its border. |
 | Icon label wrapping | `whiteSpace`, `html` (on icons) | `nowrap`, `1` | An icon's label sits under the picture. With `wrap`, it can only be as wide as the icon, often 64 px, and becomes a narrow stack of single words. |
@@ -223,7 +224,8 @@ diagram is cramped, tell the user and offer to space it out.
 ## Groups
 
 Draw a group, such as a resource group, a network or a team boundary, as a real
-container: a dashed rectangle with `container=1;recursiveResize=0;`, and the
+container: a dashed rectangle (`dashed=1`, see the values table) with
+`container=1;recursiveResize=0;`, and the
 shapes inside it with `parent="<group id>"`. The group may have a fill. Moving
 the group in draw.io then moves everything in it. `recursiveResize=0` matters
 when someone enlarges the group in draw.io: without it, draw.io scales and moves

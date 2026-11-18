@@ -180,6 +180,11 @@ ends and that every group has `recursiveResize=0`. The Azure case hits its
 history of the five rounds is in
 `docs/plans/2026-11-13-drawio-conventions-arrows-notes-groups.md`.
 
+Short dashes update (v1.18.1): `azure-group-long-labels` now also checks
+that no cell combines `dashed=1` with a `dashPattern`, so the group border
+uses draw.io's shortest dash. The last round's diagrams already pass it, so
+the case was not rerun.
+
 `drawio-export-png` ends on the eight-turn cap after trying to render. That is
 expected and does not affect the score: the grader only asks whether the skill
 was called.
