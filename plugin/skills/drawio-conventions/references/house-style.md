@@ -24,6 +24,7 @@ a TBD row, so the diagram stays consistent.
 | Edge label size | `fontSize` (on edges with a label and on edge label cells) | `12` | Edge labels stay readable. The `edgeLabel` class would set 11. |
 | Icon labels | `labelBackgroundColor` (on icons) | `#FFFFFF` | A white box behind an icon's label, so a line under it does not cross the text. |
 | Dashed lines | `dashed`, `dashPattern` (on dashed edges and borders) | `dashed=1`, no `dashPattern` | Every dashed line, including a group's border, uses draw.io's first dashed option, "Dashed (1)": short dashes close together. The other options (`dashPattern=8 8`, `12 12`, `8 4 1 4`) give longer dashes with wider gaps. The dash length grows with `strokeWidth`. |
+| Group border colour | `strokeColor` (on groups) | `#999999` | The same grey as the lines, so the dashed border marks the group without competing with the shapes inside. |
 | Group resizing | `recursiveResize` (on groups) | `0` | When someone resizes a group in draw.io, the shapes and icons inside keep their size and place. draw.io's own default `1` scales and moves them with the group. |
 | Label wrapping | `whiteSpace`, `html` (on vertices) | `wrap`, `1` | Long labels wrap inside the shape instead of running over its border. |
 | Icon label wrapping | `whiteSpace`, `html` (on icons) | `nowrap`, `1` | An icon's label sits under the picture. With `wrap`, it can only be as wide as the icon, often 64 px, and becomes a narrow stack of single words. |
@@ -232,6 +233,21 @@ when someone enlarges the group in draw.io: without it, draw.io scales and moves
 every shape and icon inside along with the group, and the user has to put them
 back by hand. draw.io's own group shapes, such as the AWS groups, set it too. A plain rectangle drawn behind the shapes looks
 the same, but leaves its contents behind when someone moves it.
+
+Give the group's border `strokeColor=#999999` (see the values table).
+
+Keep the group's own `value` empty and put its name in a separate text cell.
+The label of the group shape itself is hard to place: it depends on the
+group's alignment keys and moves when the group is resized. A separate text
+cell can be dragged to another place in draw.io without touching the group.
+
+- Make the text cell a child of the group (`parent="<group id>"`), so it moves
+  with the group.
+- Place it in the top-left corner, about 10 px from the left and top border,
+  with `text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;` and a size
+  that fits the text.
+- Keep the shapes and lines inside the group clear of it: start them at least
+  20 px below the text cell.
 
 draw.io draws a group together with everything in it, at the group's own place
 in the file. That decides which lines show on top of a group's fill and which

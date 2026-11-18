@@ -6,7 +6,7 @@ Usage: check_drawio.py <file.drawio> [--drawio-asar PATH] [--expect-tabs NAME,NA
 
 It reads the file from disk, so it checks what was really written, not what
 the caller meant to write. It covers the general rules (A and B, flat look,
-drawing order, file format, tabs, dash pattern, arrow heads, group resizing, note autosize, layout of connected shapes, lines that share
+drawing order, file format, tabs, dash pattern, arrow heads, group resizing, group border colour and label, note autosize, layout of connected shapes, lines that share
 a start point, icon names, icon label position, label fit, note size). When
 draw.io desktop is installed, it also renders each tab to SVG and reports
 lines that run on top of each other and lines that run through a label. It does not
@@ -512,6 +512,11 @@ def check_diagram(name, model, rep, names):
             rep.warn(where, "autosize=1 makes draw.io resize the note every time its text is edited; remove it and give the note a fixed size")
         if cell.get("vertex") == "1" and keys.get("container") == "1" and keys.get("recursiveResize") != "0":
             rep.warn(where, "group without recursiveResize=0: resizing it in draw.io also resizes and moves the shapes inside; add recursiveResize=0")
+        if cell.get("vertex") == "1" and keys.get("container") == "1" and keys.get("dashed") == "1":
+            if keys.get("strokeColor", "").upper() != "#999999":
+                rep.warn(where, f"dashed group border is {keys.get('strokeColor') or 'the default colour'}; the house style uses strokeColor=#999999")
+            if text_lines(cell.get("value") or ""):
+                rep.warn(where, "the group carries its own label, which is hard to place and to move by hand; empty the group's value and put the name in a separate text cell inside the group, top-left")
         # A note sized to fit its text, not to match the other notes.
         if is_note and cell.get("value"):
             g = geom(cid)
